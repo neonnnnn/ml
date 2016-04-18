@@ -123,6 +123,7 @@ class SVC(object):
             d = (- y1 * grad_f_a[idx1] + y2 * grad_f_a[idx2]) / a
             alpha1_new = alpha1_old + y1 * d
             sum = y1 * alpha1_old + y2 * alpha2_old
+
             if alpha1_new > self.C:
                 alpha1_new = self.C
             elif alpha1_new < 0:

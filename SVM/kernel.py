@@ -3,7 +3,7 @@ import utils
 import numpy as np
 
 
-# return shape : (x2.shape[0], x1.shape[0])
+# return shape : (x2.shape[0], x1.shape[1])
 
 def linear(x1, x2, params):
     x1 = np.atleast_2d(x1)
@@ -32,9 +32,3 @@ Linear = linear
 Polynomial = polynomial
 RBF = gaussian = Gaussian = gauss = Gauss = rbf
 
-
-if __name__=='__main__':
-    a = np.array([[1,2,3], [4,5,6]])
-    b = np.array([7,8,9])
-    c = polynomial(a, b, [1, 4])
-    print c
