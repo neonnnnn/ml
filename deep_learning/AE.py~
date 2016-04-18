@@ -1,0 +1,44 @@
+import sys
+sys.path.append('/path/to/deeplearning/')
+import numpy as np
+from load_mnist import load_data
+import model
+from layer import Dense, Activation, Decoder
+import optimizer
+import objective
+import util
+
+rng = np.random.RandomState(1234)
+dataset = load_data()
+x_train, y_train = dataset[0]
+x_valid, y_valid = dataset[1]
+x_test, y_test = dataset[2]
+imshape = (1, 28, 28)
+
+rng = np.random.RandomState(1234)
+dataset = load_data()
+x_train, y_train = dataset[0]
+x_valid, y_valid = dataset[1]
+imshape = (1, 28, 28)
+
+models = model.Sequential(28*28, rng)
+
+models.add(Dense(500))
+models.add(Activation('sigmoid'))
+models.add(Decoder(models.layers[0]))
+models.add(Activation('softmax'))
+
+opt = optimizer.SGD(momentum=0)
+loss = objective.CrossEntropy()
+models.compile(batch_size=20, nb_epoch=20, opt=opt, loss=loss)
+models.fit(x_train, x_train, x_valid, x_valid, shuffle=False)
+
+util.visualize_weights(models.layers[0].W.get_value().T, (28, 28), "autoencoder_W.png")
+
+output = models.predict_proba()
+output *= 255.0
+output = output.astype(np.int)
+
+util.visualize_weights(x_test, (28, 28), "autoencoder_output.png")
+
+
