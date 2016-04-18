@@ -21,9 +21,9 @@ if __name__ == '__main__':
     max_iter = 50000
     C = 1e0
     # Set kernel function
-    kernel = 'linear'
+    kernel = 'rbf'
     # Create object
-    clf = SVC.SVC(C=C, Kernel=kernel, params=[], max_iter=max_iter)
+    clf = SVC.SVC(C=C, Kernel=kernel, params=[0.005], max_iter=max_iter)
     #clf = svm.SVC(C=1, kernel='linear', max_iter=max_iter, gamma=0.005, shrinking=shrinking)
 
     start = time.time()
