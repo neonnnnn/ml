@@ -77,7 +77,6 @@ class SVC(object):
         else:
             return False
 
-
     def decision_function(self, x):
         return np.dot(self.kernel(self.support_vector, x, self.params), self.alpha * self.y) + self.bias
 
@@ -101,7 +100,6 @@ class SVC(object):
         I_up_idx = self.y > 0
         I_low_idx = self.y < 0
         grad_f_a = - np.ones(y.shape[0])
-        A = range(y.shape[0])
 
         for i in xrange(self.max_iter):
             # select working set
@@ -158,7 +156,6 @@ class SVC(object):
         self.alpha = self.alpha[support_vector_idx]
         self.y = self.y[support_vector_idx]
         self.bias = np.average(self.y - np.dot(self.alpha * self.y, self.kernel(self.support_vector, self.support_vector, self.params)))
-        #self.bias = (-y1 * grad_f_a[idx1] - y2 * grad_f_a[idx2]) / 2
 
     WSS1 = wss1 = working_set_selection1
     WSS3 = wss3 = working_set_selection3
