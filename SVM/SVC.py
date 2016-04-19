@@ -5,7 +5,7 @@ import kernel
 class SVC(object):
     def __init__(self, C, Kernel='linear', params=None, eps=1e-3, tau=1e-12, max_iter=1000, wss='WSS1'):
         self.C = C
-        self.kernel = kernel.get_kernel(Kernel)
+        self.K = kernel.get_kernel(Kernel)(params)
         self.params = params
         self.eps = eps
         self.tau = tau
@@ -15,6 +15,7 @@ class SVC(object):
         self.y = None
         self.support_vector = None
         self.cache = {}
+        self.cache2 = {}
         self.WSS = self.__getattribute__(wss)
 
     def working_set_selection1(self, grad_f_a, I_up_idx, I_low_idx, x):
@@ -22,10 +23,10 @@ class SVC(object):
         idx1 = I_up_idx[np.argmax(minus_y_times_grad[I_up_idx])]
         idx2 = I_low_idx[np.argmin(minus_y_times_grad[I_low_idx])]
         if not (idx1 in self.cache):
-            self.cache[idx1] = self.y * self.y[idx1] * self.kernel(x, x[idx1], self.params).ravel()
+            self.cache[idx1] = self.y * self.y[idx1] * self.K.calc_kernel(x, x[idx1]).ravel()
 
         if not (idx2 in self.cache):
-            self.cache[idx2] = self.y * self.y[idx2] * self.kernel(x, x[idx2], self.params).ravel()
+            self.cache[idx2] = self.y * self.y[idx2] * self.K.calc_kernel(x, x[idx2]).ravel()
 
         if - self.y[idx1] * grad_f_a[idx1] + self.y[idx2] * grad_f_a[idx2] <= self.eps:
             print ("Converge.")
@@ -39,15 +40,17 @@ class SVC(object):
         t = I_low_idx[np.where(minus_y_times_grad[I_low_idx] < minus_y_times_grad[idx1])].tolist()
 
         if not (idx1 in self.cache):
-            self.cache[idx1] = self.y * self.y[idx1] * self.kernel(x, x[idx1], self.params).ravel()
+            self.cache[idx1] = self.y * self.y[idx1] * self.K.calc_kernel(x, x[idx1]).ravel()
+            self.cache2[idx1] = (self.cache[idx1])[idx1]
+
         Qii = self.cache[idx1]
 
         Qtt = np.zeros(len(t))
         j = 0
         for i in t:
-            if not (i in self.cache):
-                self.cache[i] = self.y * self.y[i] * self.kernel(x, x[i], self.params).ravel()
-            Qtt[j] = (self.cache[i])[i]
+            if not (i in self.cache2):
+                self.cache2[i] = self.K.calc_kernel_diagonal(x[i])
+            Qtt[j] = self.cache2[i]
             j += 1
 
         ait = Qii[idx1] + Qtt - 2 * self.y[idx1] * self.y[t] * Qii[t]
@@ -61,7 +64,7 @@ class SVC(object):
 
         idx2 = t[np.argmin(obj_min)]
         if not (idx2 in self.cache):
-            self.cache[idx2] = self.y * self.y[idx2] * self.kernel(x, x[idx2], self.params)
+            self.cache[idx2] = self.y * self.y[idx2] * self.K.calc_kernel(x, x[idx2]).ravel()
 
         return idx1, idx2
 
@@ -78,7 +81,7 @@ class SVC(object):
             return False
 
     def decision_function(self, x):
-        return np.dot(self.kernel(self.support_vector, x, self.params), self.alpha * self.y) + self.bias
+        return np.dot(self.K.calc_kernel(self.support_vector, x), self.alpha * self.y) + self.bias
 
     def predict(self, x):
         return np.sign(self.decision_function(x))
@@ -106,10 +109,8 @@ class SVC(object):
             idx1, idx2 = self.WSS(grad_f_a, I_up_idx.nonzero()[0], I_low_idx.nonzero()[0], x)
             if idx1 == -1:
                 break
-            if i == 20000:
-                self.WSS = self.__getattribute__("WSS3")
-            y1 = y[idx1]
-            y2 = y[idx2]
+            y1 = self.y[idx1]
+            y2 = self.y[idx2]
             Qii = self.cache[idx1]
             Qjj = self.cache[idx2]
 
@@ -156,7 +157,7 @@ class SVC(object):
         self.support_vector = x[support_vector_idx]
         self.alpha = self.alpha[support_vector_idx]
         self.y = self.y[support_vector_idx]
-        self.bias = np.average(self.y - np.dot(self.alpha * self.y, self.kernel(self.support_vector, self.support_vector, self.params)))
+        self.bias = np.average(self.y - np.dot(self.alpha * self.y, self.K.calc_kernel(self.support_vector, self.support_vector)))
 
     WSS1 = wss1 = working_set_selection1
     WSS3 = wss3 = working_set_selection3
