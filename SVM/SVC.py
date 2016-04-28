@@ -22,17 +22,25 @@ class SVC(object):
         minus_y_times_grad = - self.y * grad_f_a
         idx1 = I_up_idx[np.argmax(minus_y_times_grad[I_up_idx])]
         idx2 = I_low_idx[np.argmin(minus_y_times_grad[I_low_idx])]
+        y1 = self.y[idx1]
+        y2 = self.y[idx2]
         if not (idx1 in self.cache):
-            self.cache[idx1] = self.y * self.y[idx1] * self.K.calc_kernel(x, x[idx1]).ravel()
+            self.cache[idx1] = self.y * y1 * self.K.calc_kernel(x, x[idx1]).ravel()
 
         if not (idx2 in self.cache):
-            self.cache[idx2] = self.y * self.y[idx2] * self.K.calc_kernel(x, x[idx2]).ravel()
+
+            self.cache[idx2] = self.y * y2 * self.K.calc_kernel(x, x[idx2]).ravel()
 
         if - self.y[idx1] * grad_f_a[idx1] + self.y[idx2] * grad_f_a[idx2] <= self.eps:
             print ("Converge.")
-            return -1, -1
+            return -1, -1, -1
 
-        return idx1, idx2
+        a = (self.cache[idx1])[idx1] + (self.cache[idx2])[idx2] - 2 * self.y[idx1] * self.y[idx2] * (self.cache[idx1])[idx2]
+        if a <= 0:
+            a = self.tau
+        d = (minus_y_times_grad[idx1] - minus_y_times_grad[idx2]) / a
+
+        return idx1, idx2, d
 
     def working_set_selection3(self, grad_f_a, I_up_idx, I_low_idx, x):
         minus_y_times_grad = - self.y * grad_f_a
@@ -45,8 +53,9 @@ class SVC(object):
 
         Qii = self.cache[idx1]
 
-        Qtt = np.zeros(len(t))
+        Qtt = np.ones(len(t))
         j = 0
+
         for i in t:
             if not (i in self.cache2):
                 self.cache2[i] = self.K.calc_kernel_diagonal(x[i])
@@ -60,25 +69,14 @@ class SVC(object):
 
         if minus_y_times_grad[idx1] - np.min(obj_min) <= self.eps:
             print ("Converge.")
-            return -1, -1
+            return -1, -1, -1
 
-        idx2 = t[np.argmin(obj_min)]
+        t_idx = np.argmin(obj_min)
+        idx2 = t[t_idx]
         if not (idx2 in self.cache):
             self.cache[idx2] = self.y * self.y[idx2] * self.K.calc_kernel(x, x[idx2]).ravel()
 
-        return idx1, idx2
-
-    def check_I_up_idx(self, y, alpha):
-        if ((y == 1) and (alpha < self.C)) or ((y == -1) and (alpha > 0)):
-            return True
-        else:
-            return False
-
-    def check_I_low_idx(self, y, alpha):
-        if ((y == 1) and (alpha > 0)) or ((y == -1) and (alpha < self.C)):
-            return True
-        else:
-            return False
+        return idx1, idx2, bit[t_idx]/ait[t_idx]
 
     def decision_function(self, x):
         return np.dot(self.K.calc_kernel(self.support_vector, x), self.alpha * self.y) + self.bias
@@ -102,11 +100,12 @@ class SVC(object):
 
         I_up_idx = self.y > 0
         I_low_idx = self.y < 0
+
         grad_f_a = - np.ones(y.shape[0])
 
-        for i in xrange(self.max_iter):
+        for i in range(self.max_iter):
             # select working set
-            idx1, idx2 = self.WSS(grad_f_a, I_up_idx.nonzero()[0], I_low_idx.nonzero()[0], x)
+            idx1, idx2, d = self.WSS(grad_f_a, I_up_idx.nonzero()[0], I_low_idx.nonzero()[0], x)
             if idx1 == -1:
                 break
             y1 = self.y[idx1]
@@ -118,25 +117,24 @@ class SVC(object):
             alpha2_old = self.alpha[idx2]
 
             # update alpha_1 and alpha_2
-            a = Qii[idx1] + Qjj[idx2] - 2 * y1 * y2 * Qii[idx2]
-            if a <= 0:
-                a = self.tau
-            d = (- y1 * grad_f_a[idx1] + y2 * grad_f_a[idx2]) / a
             alpha1_new = alpha1_old + y1 * d
             sum = y1 * alpha1_old + y2 * alpha2_old
 
             if alpha1_new > self.C:
                 alpha1_new = self.C
+
             elif alpha1_new < 0:
                 alpha1_new = 0
 
             alpha2_new = y2 * (sum - y1 * alpha1_new)
+
             if alpha2_new > self.C:
                 alpha2_new = self.C
+                alpha1_new = y1 * (sum - y2 * alpha2_new)
             elif alpha2_new < 0:
                 alpha2_new = 0
+                alpha1_new = y1 * sum
 
-            alpha1_new = y1 * (sum - y2 * alpha2_new)
             self.alpha[idx2] = alpha2_new
             self.alpha[idx1] = alpha1_new
 
@@ -144,12 +142,14 @@ class SVC(object):
             grad_f_a += Qii * (alpha1_new - alpha1_old) + Qjj * (alpha2_new - alpha2_old)
 
             # update I_up_idx
-            I_up_idx[idx1] = self.check_I_up_idx(y1, alpha1_new)
-            I_up_idx[idx2] = self.check_I_up_idx(y2, alpha2_new)
+            if not (alpha1_new < self.C):
+                I_up_idx[idx1] = False
+            I_up_idx[idx2] = True
 
             # update I_low_idx
-            I_low_idx[idx1] = self.check_I_low_idx(y1, alpha1_new)
-            I_low_idx[idx2] = self.check_I_low_idx(y2, alpha2_new)
+            I_low_idx[idx1] = True
+            if not (alpha2_new < self.C):
+                I_low_idx[idx2] = False
 
         print ('Training Complete. Iteration:'), (i)
 
@@ -161,8 +161,3 @@ class SVC(object):
 
     WSS1 = wss1 = working_set_selection1
     WSS3 = wss3 = working_set_selection3
-
-
-
-
-

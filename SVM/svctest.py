@@ -20,14 +20,14 @@ if __name__ == '__main__':
     # Set parameters
 
     max_iter = 50000
-    C = 1e0
+    C = 1.0
     # Set kernel function
     kernel = 'rbf'
 
     wss = 'wss3'
     # Create object
     clf = SVC.SVC(C=C, Kernel=kernel, params=[0.005], max_iter=max_iter, wss=wss)
-    #clf = svm.SVC(C=1, kernel='linear', max_iter=max_iter, gamma=0.005, shrinking=False)
+    #clf = svm.SVC(C=1, kernel='rbf', max_iter=max_iter, gamma=0.005, shrinking=False)
 
     start = time.time()
     clf.fit(x_train, y_train)

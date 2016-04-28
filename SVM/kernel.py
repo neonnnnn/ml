@@ -15,7 +15,6 @@ class Linear(object):
 
     @staticmethod
     def calc_kernel_diagonal(x1):
-        #return np.sum(x1 * x1, axis=1)
         return np.dot(x1, x1)
 
 
@@ -28,7 +27,6 @@ class Polynomial(object):
         return (np.dot(x2, x1.T) + self.c) ** self.d
 
     def calc_kernel_diagonal(self, x1):
-        #return (np.sum(x1 * x1, axis=1) + self.c) ** self.d
         return (np.dot(x1, x1) + self.c) ** self.d
 
 
@@ -44,8 +42,24 @@ class RBF(object):
 
     @staticmethod
     def calc_kernel_diagonal(x1):
-        #return np.ones(x1.shape[0])
         return 1.0
+
+
+class Pairwise(object):
+    def __init__(self, params):
+        self.vec_len = params[0]
+
+    def calc_kernel(self, x1, x2):
+        k1 = np.dot(x2[:self.vec_len], x1[:self.vec_len].T) * np.dot(x2[self.vec_len:], x1[self.vec_len:].T)
+        k2 = np.dot(x2[:self.vec_len], x1[self.vev_len:].T) * np.dot(x2[self.vec_lem:], x1[:self.vec_len].T)
+
+        return (k1 + k2) / 2.
+
+    def calc_kernel_diag(self, x1):
+        k1 = np.dot(x1[:self.vec_len], x1[:self.vec_len]) * np.dot(x1[self.vec_len:], x1[self.vec_len:])
+        k2 = np.dot(x1[:self.vec_len], x1[self.vec_len:]) * np.dot(x1[self.vec_len:], x1[:self.vec_len])
+        return (k1 + k2) / 2.
+
 
 def get_kernel(identifier):
     return utils.get_from_module(identifier, globals(), 'kernel')
