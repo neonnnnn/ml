@@ -1,5 +1,6 @@
 import numpy as np
 import kernel
+from operator import itemgetter
 
 
 class SVC(object):
@@ -28,14 +29,13 @@ class SVC(object):
             self.cache[idx1] = self.y * y1 * self.K.calc_kernel(x, x[idx1]).ravel()
 
         if not (idx2 in self.cache):
-
             self.cache[idx2] = self.y * y2 * self.K.calc_kernel(x, x[idx2]).ravel()
 
-        if - self.y[idx1] * grad_f_a[idx1] + self.y[idx2] * grad_f_a[idx2] <= self.eps:
+        if minus_y_times_grad[idx1] - minus_y_times_grad[idx2] <= self.eps:
             print ("Converge.")
             return -1, -1, -1
 
-        a = (self.cache[idx1])[idx1] + (self.cache[idx2])[idx2] - 2 * self.y[idx1] * self.y[idx2] * (self.cache[idx1])[idx2]
+        a = (self.cache[idx1])[idx1] + (self.cache[idx2])[idx2] - 2 * y1 * y2 * (self.cache[idx1])[idx2]
         if a <= 0:
             a = self.tau
         d = (minus_y_times_grad[idx1] - minus_y_times_grad[idx2]) / a
@@ -43,43 +43,48 @@ class SVC(object):
         return idx1, idx2, d
 
     def working_set_selection3(self, grad_f_a, I_up_idx, I_low_idx, x):
-        minus_y_times_grad = - self.y * grad_f_a
-        idx1 = I_up_idx[np.argmax(minus_y_times_grad[I_up_idx])]
-        t = I_low_idx[np.where(minus_y_times_grad[I_low_idx] < minus_y_times_grad[idx1])].tolist()
+            minus_y_times_grad = - self.y * grad_f_a
+            idx1 = I_up_idx[np.argmax(minus_y_times_grad[I_up_idx])]
+            t = I_low_idx[np.where(minus_y_times_grad[I_low_idx] < minus_y_times_grad[idx1])].tolist()
 
-        if not (idx1 in self.cache):
-            self.cache[idx1] = self.y * self.y[idx1] * self.K.calc_kernel(x, x[idx1]).ravel()
-            self.cache2[idx1] = (self.cache[idx1])[idx1]
+            if not (idx1 in self.cache):
+                self.cache[idx1] = self.y * self.y[idx1] * self.K.calc_kernel(x, x[idx1]).ravel()
+            Qii = self.cache[idx1]
 
-        Qii = self.cache[idx1]
-
-        Qtt = np.ones(len(t))
-        j = 0
-
-        for i in t:
-            if not (i in self.cache2):
+            newkeys = set(t).difference(self.cache2.keys())
+            for i in newkeys:
                 self.cache2[i] = self.K.calc_kernel_diagonal(x[i])
-            Qtt[j] = self.cache2[i]
-            j += 1
+            Qtt = np.array(itemgetter(*t)(self.cache2))
 
-        ait = Qii[idx1] + Qtt - 2 * self.y[idx1] * self.y[t] * Qii[t]
-        ait[np.where(ait <= 0)] = self.tau
-        bit = minus_y_times_grad[idx1] - minus_y_times_grad[t]
-        obj_min = - (bit ** 2) / ait
+            ait = Qii[idx1] + Qtt - 2 * self.y[idx1] * self.y[t] * Qii[t]
+            ait[np.where(ait <= 0)] = self.tau
+            bit = minus_y_times_grad[idx1] - minus_y_times_grad[t]
+            obj_min = - (bit ** 2) / ait
+            t_idx = np.argmin(obj_min)
+            if minus_y_times_grad[idx1] - obj_min[t_idx] <= self.eps:
+                print ("Converge.")
+                return -1, -1, -1
 
-        if minus_y_times_grad[idx1] - np.min(obj_min) <= self.eps:
-            print ("Converge.")
-            return -1, -1, -1
+            idx2 = t[t_idx]
+            if not (idx2 in self.cache):
+                self.cache[idx2] = self.y * self.y[idx2] * self.K.calc_kernel(x, x[idx2]).ravel()
 
-        t_idx = np.argmin(obj_min)
-        idx2 = t[t_idx]
-        if not (idx2 in self.cache):
-            self.cache[idx2] = self.y * self.y[idx2] * self.K.calc_kernel(x, x[idx2]).ravel()
+            return idx1, idx2, bit[t_idx] / ait[t_idx]
 
-        return idx1, idx2, bit[t_idx]/ait[t_idx]
+    def check_I_up_idx(self, y, alpha):
+        if ((y == 1) and (alpha < self.C)) or ((y == -1) and (alpha > 0)):
+            return True
+        else:
+            return False
+
+    def check_I_low_idx(self, y, alpha):
+        if ((y == 1) and (alpha > 0)) or ((y == -1) and (alpha < self.C)):
+            return True
+        else:
+            return False
 
     def decision_function(self, x):
-        return np.dot(self.K.calc_kernel(self.support_vector, x), self.alpha * self.y) + self.bias
+        return (self.K.calc_kernel(self.support_vector, x)).dot(self.alpha * self.y) + self.bias
 
     def predict(self, x):
         return np.sign(self.decision_function(x))
@@ -141,15 +146,12 @@ class SVC(object):
             # update grad_f_a
             grad_f_a += Qii * (alpha1_new - alpha1_old) + Qjj * (alpha2_new - alpha2_old)
 
-            # update I_up_idx
-            if not (alpha1_new < self.C):
-                I_up_idx[idx1] = False
-            I_up_idx[idx2] = True
+            I_up_idx[idx1] = self.check_I_up_idx(y1, alpha1_new)
+            I_up_idx[idx2] = self.check_I_up_idx(y2, alpha2_new)
 
             # update I_low_idx
-            I_low_idx[idx1] = True
-            if not (alpha2_new < self.C):
-                I_low_idx[idx2] = False
+            I_low_idx[idx1] = self.check_I_low_idx(y1, alpha1_new)
+            I_low_idx[idx2] = self.check_I_low_idx(y2, alpha2_new)
 
         print ('Training Complete. Iteration:'), (i)
 
@@ -157,7 +159,7 @@ class SVC(object):
         self.support_vector = x[support_vector_idx]
         self.alpha = self.alpha[support_vector_idx]
         self.y = self.y[support_vector_idx]
-        self.bias = np.average(self.y - np.dot(self.alpha * self.y, self.K.calc_kernel(self.support_vector, self.support_vector)))
+        self.bias = np.average(self.y - (self.alpha * self.y).dot(self.K.calc_kernel(self.support_vector, self.support_vector)))
 
     WSS1 = wss1 = working_set_selection1
     WSS3 = wss3 = working_set_selection3
