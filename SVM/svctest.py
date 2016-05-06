@@ -34,5 +34,8 @@ if __name__ == '__main__':
     end = time.time()
     print end - start
     score = clf.score(x_test, y_test)
+    pred = clf.predict(x_test)
+    print pred
+
     print ("score:"), (score)
     print len(clf.cache)

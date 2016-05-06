@@ -46,13 +46,13 @@ class RBF(object):
         return 1.0
 
 
-class Pairwise(object):
+class Certesian(object):
     def __init__(self, params):
         self.vec_len = params[0]
 
     def calc_kernel(self, x1, x2):
-        k1 = (x2[:self.vec_len]).dot(x1[:self.vec_len].T) * (x2[self.vec_len:]).dot(x1[self.vec_len:].T)
-        k2 = (x2[:self.vec_len]).dot(x1[self.vev_len:].T) * (x2[self.vec_lem:]).dot(x1[:self.vec_len].T)
+        k1 = (x2[:self.vec_len]).dot(x1[:, self.vec_len].T) * (x2[self.vec_len:]).dot(x1[:, self.vec_len:].T)
+        k2 = (x2[:self.vec_len]).dot(x1[:, self.vev_len:].T) * (x2[self.vec_len:]).dot(x1[:, self.vec_len].T)
 
         return (k1 + k2) / 2.
 
@@ -68,4 +68,4 @@ def get_kernel(identifier):
 linear = Linear
 polynomial = Polynomial
 rbf = gaussian = Gaussian = gauss = Gauss = RBF
-pairwise = PairWise = Pairwise
+certesian = Certesian
