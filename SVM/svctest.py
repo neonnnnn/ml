@@ -1,5 +1,5 @@
 import numpy as np
-import SVC
+import svc
 import load_mnist
 import time
 from sklearn import svm
@@ -19,15 +19,15 @@ if __name__ == '__main__':
     y_test = ((y_test - 5) / 3) * 2 - 1
     # Set parameters
 
-    max_iter = 50000
+    max_iter = 1000
     C = 1.0
     # Set kernel function
     kernel = 'rbf'
 
-    wss = 'wss3'
+    wss = 'wss1'
     # Create object
-    clf = SVC.SVC(C=C, Kernel=kernel, params=[0.005], max_iter=max_iter, wss=wss)
-    #clf = svm.SVC(C=1, kernel='linear', max_iter=max_iter, gamma=0.005, shrinking=False)
+    clf = svc.SVC(C=C, kernel_name=kernel, params=[0.005], max_iter=max_iter, wss=wss)
+    #clf = svm.SVC(C=1, kernel='rbf', max_iter=max_iter, gamma=0.005, shrinking=False)
 
     start = time.time()
     clf.fit(x_train, y_train)
@@ -35,7 +35,4 @@ if __name__ == '__main__':
     print end - start
     score = clf.score(x_test, y_test)
     pred = clf.predict(x_test)
-    print pred
-
     print ("score:"), (score)
-    print len(clf.cache)
