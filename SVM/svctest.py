@@ -19,18 +19,19 @@ if __name__ == '__main__':
     y_test = ((y_test - 5) / 3) * 2 - 1
     # Set parameters
 
-    max_iter = 1000
+    max_iter = 10000
     C = 1.0
     # Set kernel function
-    kernel = 'rbf'
+    kernel = 'linear'
 
     wss = 'wss1'
     # Create object
-    clf = svc.SVC(C=C, kernel_name=kernel, params=[0.005], max_iter=max_iter, wss=wss)
-    #clf = svm.SVC(C=1, kernel='rbf', max_iter=max_iter, gamma=0.005, shrinking=False)
-
+    clf = svc.SVC(C=C, kernel_name=kernel, params=[0.005], max_iter=max_iter, wss=wss, eps=1e-3)
+    #clf = svm.SVC(C=1, kernel='l', max_iter=max_iter, gamma=0.005, degree=2, coef0=1, shrinking=False)
+    #clf = svm.LinearSVC(C=1, max_iter=max_iter)
     start = time.time()
     clf.fit(x_train, y_train)
+
     end = time.time()
     print end - start
     score = clf.score(x_test, y_test)
