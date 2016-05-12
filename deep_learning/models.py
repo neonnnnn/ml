@@ -6,6 +6,7 @@ import theano.tensor as T
 import optimizers
 import objectives
 import utils
+import scipy.sparse as sp
 
 
 class Sequential(object):
@@ -71,33 +72,59 @@ class Sequential(object):
     def batch_train(self, x_train, y_train, train_model, n_batches):
         train_loss = []
         batch_start = 0
-        for i in xrange(n_batches):
-            batch_end = batch_start + self.batch_size
-            train_loss += [train_model(x_train[batch_start:batch_end], y_train[batch_start:batch_end])]
-            batch_start += self.batch_size
-            utils.progbar(i+1, n_batches)
-            sys.stdout.write(" batches")
+        # if x is sparse matrix
+        if sp.issparse(x_train):
+            for i in xrange(n_batches):
+                batch_end = batch_start + self.batch_size
+                train_loss += [train_model(x_train[batch_start:batch_end].toarray(), y_train[batch_start:batch_end])]
+                batch_start += self.batch_size
+                utils.progbar(i + 1, n_batches)
+                sys.stdout.write(" batches")
+        else:
+            for i in xrange(n_batches):
+                batch_end = batch_start + self.batch_size
+                train_loss += [train_model(x_train[batch_start:batch_end], y_train[batch_start:batch_end])]
+                batch_start += self.batch_size
+                utils.progbar(i+1, n_batches)
+                sys.stdout.write(" batches")
+
         sys.stdout.write(', train_loss:%.5f' % np.mean(train_loss))
 
     def calc_error_rate(self, x, y, model, n_batches):
         error = 0.0
         batch_start = 0
-        for i in xrange(n_batches):
-            batch_end = batch_start + self.batch_size
-            pred = model(x[batch_start:batch_end])
-            error += utils.num_of_error(y[batch_start:batch_end], pred)
-            batch_start += self.batch_size
+        # if x is sparse matrix
+        if sp.issparse(x):
+            for i in xrange(n_batches):
+                batch_end = batch_start + self.batch_size
+                pred = model(x[batch_start:batch_end].toarray())
+                error += utils.num_of_error(y[batch_start:batch_end], pred)
+                batch_start += self.batch_size
+        else:
+            for i in xrange(n_batches):
+                batch_end = batch_start + self.batch_size
+                pred = model(x[batch_start:batch_end])
+                error += utils.num_of_error(y[batch_start:batch_end], pred)
+                batch_start += self.batch_size
         error_rate = 100. * error / (self.batch_size * n_batches)
         return error_rate
 
     def calc_loss(self, x, y, model, n_batches):
         loss = []
         batch_start = 0
-        for i in xrange(n_batches):
-            batch_end = batch_start + self.batch_size
-            pred = model(x[batch_start:batch_end])
-            loss += [self.loss.get_output_no_symbol(y[batch_start:batch_end], pred)]
-            batch_start += self.batch_size
+        # if x is sparse matrix
+        if sp.issparse(x):
+            for i in xrange(n_batches):
+                batch_end = batch_start + self.batch_size
+                pred = model(x[batch_start:batch_end].toarray())
+                loss += [self.loss.get_output_no_symbol(y[batch_start:batch_end], pred)]
+                batch_start += self.batch_size
+        else:
+            for i in xrange(n_batches):
+                batch_end = batch_start + self.batch_size
+                pred = model(x[batch_start:batch_end])
+                loss += [self.loss.get_output_no_symbol(y[batch_start:batch_end], pred)]
+                batch_start += self.batch_size
         return np.mean(loss)
 
     # define batch_size, nb_epoch, loss and optimization method
@@ -195,13 +222,22 @@ class Sequential(object):
         print ('predicting...')
         n_pred_batches = data_x.shape[0] / self.batch_size
         batch_start = 0
-        for i in xrange(n_pred_batches):
-            batch_end = batch_start + self.batch_size
-            if i == 0:
-                output = test_model(data_x[batch_start:batch_end])
-            else:
-                output = np.vstack((output, test_model(data_x[batch_start:batch_end])))
-            batch_start += self.batch_size
+        if sp.issparse(data_x):
+            for i in xrange(n_pred_batches):
+                batch_end = batch_start + self.batch_size
+                if i == 0:
+                    output = test_model(data_x[batch_start:batch_end].toarray())
+                else:
+                    output = np.vstack((output, test_model(data_x[batch_start:batch_end].toarray())))
+                batch_start += self.batch_size
+        else:
+            for i in xrange(n_pred_batches):
+                batch_end = batch_start + self.batch_size
+                if i == 0:
+                    output = test_model(data_x[batch_start:batch_end])
+                else:
+                    output = np.vstack((output, test_model(data_x[batch_start:batch_end])))
+                batch_start += self.batch_size
 
         print ('predict complete.')
 
