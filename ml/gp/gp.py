@@ -1,6 +1,6 @@
 import numpy as np
 import kernel
-import scipy.optimize as spopt
+import scipy.optimize 
 import scipy.linalg
 
 
@@ -52,7 +52,7 @@ class GP(object):
 
         return grad
 
-    def fit(self, x, y, hyper_opt_iter=10, bounds=None):
+    def fit(self, x, y, hyper_opt_times=10, bounds=None):
         print ("training...")
         if len(x.shape) == 1:
             dim = 1
@@ -73,9 +73,9 @@ class GP(object):
                 for i in xrange(self.K.dim):
                     bounds.append((-5, 5))
 
-            for i in xrange(hyper_opt_iter):
+            for i in xrange(hyper_opt_times):
                 init_params = np.random.rand(self.K.dim + 2) * 2 - 1
-                res = spopt.fmin_l_bfgs_b(self.negative_log_likelihood, init_params, self.grad_nll, disp=False, iprint=0, bounds=bounds)
+                res = scipy.optimize.fmin_l_bfgs_b(self.negative_log_likelihood, init_params, self.grad_nll, disp=False, iprint=0, bounds=bounds)
                 if res[1] < f_min:
                     f_min = res[1]
                     params = res[0]
@@ -101,7 +101,7 @@ class GP(object):
         c = self.alpha * self.K.calc_kernel_diag(x) + 1.0 * self.beta
 
         # Trans_k_dot_inv_C.shape = (M,N)
-        Trans_k_dot_inv_C = np.linalg.cho_solve((self.cholesky_C, True), k.T).T
+        Trans_k_dot_inv_C = scipy.linalg.cho_solve((self.cholesky_C, True), k.T).T
         # mean.shape = (M, )
         mean = np.dot(Trans_k_dot_inv_C, self.t)
         # var.shape = (M,)

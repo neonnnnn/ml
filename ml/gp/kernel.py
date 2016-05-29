@@ -1,5 +1,5 @@
 from __future__ import division
-import utils
+from .. import utils
 import numpy as np
 # return shape : (x2.shape[0], x1.shape[0])
 # return type: numpy.ndarray

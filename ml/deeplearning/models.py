@@ -5,7 +5,7 @@ import theano
 import theano.tensor as T
 import optimizers
 import objectives
-import utils
+from .. import utils
 import scipy.sparse as sp
 
 

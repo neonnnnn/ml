@@ -1,5 +1,5 @@
 from __future__ import division
-import utils
+from .. import utils
 import numpy as np
 
 

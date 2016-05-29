@@ -1,5 +1,5 @@
 import theano.tensor as T
-from utils import get_from_module
+from .. import utils
 
 
 def sigmoid(x):
@@ -23,7 +23,7 @@ def LeakyReLU(x, alpha=0.333):
 
 
 def get_activation(identifier):
-    return get_from_module(identifier, globals(), 'activations')
+    return utils.get_from_module(identifier, globals(), 'activations')
 
 
 relu = ReLU

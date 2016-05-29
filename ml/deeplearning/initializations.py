@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 import numpy as np
-from utils import get_from_module
+from .. import utils
 
 
 def uniform(rng, shape, scale=0.05):

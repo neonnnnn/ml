@@ -8,11 +8,14 @@ from theano.tensor.nnet import conv2d
 
 
 class Dense(object):
-    def __init__(self, n_out, W_values=None, b_values=None, init='glorot_uniform'):
+    def __init__(self, n_out, dropout=None, activation=None, batchnorm=None, W_values=None, b_values=None, init='glorot_uniform'):
         self.have_params = True
         self.n_in = None
         self.n_out = n_out
         self.rng = None
+        self.dropout = dropout
+        self.activation = activation
+        self.batchnorm = batchnorm
         self.W = None
         self.W_values = W_values
         self.b = None
@@ -26,9 +29,17 @@ class Dense(object):
 
     def set_rng(self, rng):
         self.rng = rng
+        if self.dropout is not None:
+            self.dropout.rng = rng
 
     def set_input_shape(self, n_in):
         self.n_in = n_in
+        if self.dropout is not None:
+            self.dropout.set_input_shape(n_in)
+        if self.activation is not None:
+            self.activation.set_input_shape(n_in)
+        if self.batchnorm is not None:
+            self.batchnorm.set_input_shape(n_in)
 
     def set_params(self):
         if self.W_values is None:
@@ -60,10 +71,24 @@ class Dense(object):
 
     def get_output(self, input):
         self.output = T.dot(input, self.W) + self.b
+        if self.batchnorm is not None:
+            self.output = self.output.get_output(self.output)
+        if self.dropout is not None:
+            self.output = self.dropout.get_output(self.output)
+        if self.activation is not None:
+            self.output = self.activation.get_output(self.output)
+
         return self.output
         
     def get_output_train(self, input):
-        self.output_train = self.get_output(input)
+        self.output = T.dot(input, self.W) + self.b
+        if self.batchnorm is not None:
+            self.output = self.output.get_output_train(self.output)
+        if self.dropout is not None:
+            self.output = self.dropout.get_output_train(self.output)
+        if self.activation is not None:
+            self.output = self.activation.get_output_train(self.output)
+
         return self.output_train
 
 
