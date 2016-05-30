@@ -59,7 +59,7 @@ class BO(object):
                 next = self.candidates[next_idx]
                 del gaussian_process
                 gc.collect()
-                self.acquison.gamma = np.delete(self.gamma, next_idx, 0)
+                self.acquison.gamma = np.delete(self.acquison.gamma, next_idx, 0)
 
             # delete the next hyper-params in candidates
             self.candidates = np.delete(self.candidates, next_idx, 0)
