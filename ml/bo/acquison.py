@@ -11,9 +11,10 @@ class MI(object):
     def calc(self, mean, var):
         phi = self.sqrt_alpha * (np.sqrt(var + self.gamma) - np.sqrt(self.gamma))
         next_idx = np.argmax(mean + phi)
-        self.gamma = self.gamma + var
+        self.gamma += var
 
         return next_idx
+
 
 def get_acquison(identifier):
     return utils.get_from_module(identifier, globals(), 'acquison')

@@ -14,7 +14,7 @@ class GP(object):
         self.t = None
         self.x = None
         self.C = None
-	self.cholesky_C = None
+        self.cholesky_C = None
 
     def negative_log_likelihood(self, params):
         alpha = np.exp(params[0])

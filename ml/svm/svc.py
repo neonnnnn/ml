@@ -143,9 +143,9 @@ class SVC(object):
         y, up_idx, low_idx, grad_f_a = self.init_params(y)
 
         for i in range(self.max_iter):
-            if i % (self.max_iter / 1000):
-                sys.stdout.write("\r Iteration:%d/%d" % (i+1, self.max_iter))
-                sys.stdout.flush()
+            #if i % (self.max_iter / 1000):
+                #sys.stdout.write("\r Iteration:%d/%d" % (i+1, self.max_iter))
+                #sys.stdout.flush()
             # select working set
             idx1, idx2, d = self.WSS(grad_f_a, up_idx.nonzero()[0], low_idx.nonzero()[0], x, y)
 
