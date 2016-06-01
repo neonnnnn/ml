@@ -16,5 +16,19 @@ class MI(object):
         return next_idx
 
 
+class UCB(object):
+    def __init__(self, nu=1, delta=1e-3):
+        self.nu = nu
+        self.delta = delta
+        self.t = 0
+        self.d = None
+        
+    def calc(self, mean, var):
+        tau = 2 * ((self.d / 2 + 2) * np.log(self.t) + 2*np.log(np.pi) - np.log(3 * self.delta))
+        next_idx = np.argmax(mean + np.sqrt(self.nu * tau) * var)
+
+        return next_idx
+
+
 def get_acquison(identifier):
     return utils.get_from_module(identifier, globals(), 'acquison')

@@ -5,7 +5,7 @@ import scipy.linalg
 
 
 class GP(object):
-    def __init__(self, kernel_name="Matern52", alpha=None, beta=None, theta=None, type2ml=True):
+    def __init__(self, kernel_name="Matern52", alpha=None, beta=None, theta=None, type2ml=True, iprint=True):
         self.K = kernel.get_kernel(kernel_name)()
         self.theta = theta
         self.alpha = alpha
@@ -15,6 +15,7 @@ class GP(object):
         self.x = None
         self.C = None
         self.cholesky_C = None
+        self.iprint = iprint
 
     def negative_log_likelihood(self, params):
         alpha = np.exp(params[0])
@@ -53,7 +54,8 @@ class GP(object):
         return grad
 
     def fit(self, x, y, hyper_opt_times=10, bounds=None):
-        print ("training...")
+        if self.iprint:
+            print ("training...")
         if len(x.shape) == 1:
             dim = 1
             self.x = np.atleast_2d(x).T
@@ -66,7 +68,8 @@ class GP(object):
             self.K.dim += dim
 
         if self.type2ml:
-            print (" Doing Type 2 Maximum Likelihood...")
+            if self.iprint:
+                print (" Doing Type 2 Maximum Likelihood...")
             f_min = np.inf
             if bounds is None:
                 bounds = [(-5, 5), (-5, 5)]
@@ -89,6 +92,9 @@ class GP(object):
         # C.shape : (N, N)
         self.C = self.alpha * self.K.calc_kernel(self.x, self.x, self.theta) + self.beta * np.identity(self.x.shape[0])
         self.cholesky_C = scipy.linalg.cholesky(self.C, lower=True)
+
+        if self.iprint:
+            print ("Training complete.")
 
     def decision_function(self, x):
         if len(x.shape) == 1:

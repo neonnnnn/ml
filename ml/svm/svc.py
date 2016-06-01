@@ -4,7 +4,7 @@ import sys
 
 
 class SVC(object):
-    def __init__(self, C, kernel_name='linear', params=None, eps=1e-4, tau=1e-12, max_iter=10000, wss='WSS3', sparse=False):
+    def __init__(self, C, kernel_name='linear', params=None, eps=1e-4, tau=1e-12, max_iter=10000, wss='WSS3', sparse=False, iprint=True):
         self.C = C
         if sparse:
             self.K = kernel.get_kernel("Sparse" + kernel_name)(params)
@@ -15,6 +15,7 @@ class SVC(object):
         self.tau = tau
         self.max_iter = max_iter
         self.WSS = self.__getattribute__(wss)
+        self.iprint = iprint
         self.alpha = None
         self.support_vector = None
         self.bias = 0
@@ -137,15 +138,17 @@ class SVC(object):
         self.bias = np.average(-y[support_vector_idx] * grad_f_a[support_vector_idx])
 
     def fit(self, x, y):
-        print ("training ...")
+        if self.iprint:
+            print ("training ...")
 
         # init_params
         y, up_idx, low_idx, grad_f_a = self.init_params(y)
 
         for i in range(self.max_iter):
-            #if i % (self.max_iter / 1000):
-                #sys.stdout.write("\r Iteration:%d/%d" % (i+1, self.max_iter))
-                #sys.stdout.flush()
+            if self.iprint:
+                if i % (self.max_iter / 1000):
+                    sys.stdout.write("\r Iteration:%d/%d" % (i+1, self.max_iter))
+                    sys.stdout.flush()
             # select working set
             idx1, idx2, d = self.WSS(grad_f_a, up_idx.nonzero()[0], low_idx.nonzero()[0], x, y)
 
@@ -175,12 +178,14 @@ class SVC(object):
             low_idx[idx2] = self.check_low_idx(y2, alpha2_new)
 
             if self.flag:
-                print("\nConverge.")
+                if self.iprint:
+                    print("\nConverge.")
                 break
-        if not self.flag:
-            print ("")
-        print ('Training Complete.\nIteration:'), (i+1)
-        print ('len(cache):'), len(self.cache)
+        if self.iprint:
+            if not self.flag:
+                print ("")
+            print ('Training Complete.\nIteration:'), (i+1)
+            print ('len(cache):'), len(self.cache)
         self.cache.clear()
         del self.cache2
         self.calc_result(x, y, grad_f_a)
