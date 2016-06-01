@@ -8,10 +8,11 @@ import sys
 
 
 class BO(object):
-    def __init__(self, make, eval, intervals, grid=1000, fold_num=10, opt_times=100, kernel="Matern52", acq="MI", acqparams=None):
+    def __init__(self, make, eval, intervals, pred=None, grid=1000, fold_num=10, opt_times=100, kernel="Matern52", acq="MI", acqparams=None):
         self.make = make
         self.eval = eval
         self.intervals = intervals
+        self.pred = pred
         self.grid = grid
         self.fold_num = fold_num
         self.opt_times = opt_times
@@ -21,8 +22,13 @@ class BO(object):
         else:
             self.acquison = acquison.get_acquison(acq)()
 
-    def fit(self, train_x, train_y, valid_x=None, valid_y=None):
+    def fit(self, train_x, train_y, valid_x=None, valid_y=None, test_x = None):
         print ("Making candidates ...")
+
+        pred_flag = False
+        if self.pred is not None and test_x is not None:
+            pred_flag = True
+            pred_y = np.zeros((self.opt_times, test_x.shape[0]))
 
         if hasattr(self.acquison, "d"):
             self.acquison.d = len(self.intervals)
@@ -33,6 +39,7 @@ class BO(object):
         else:
             grid_list = [np.arange(self.grid[i], dtype=np.float) / self.grid[i] for i in xrange(len(self.intervals))]
             candidates = np.array(list(itertools.product(*grid_list)))
+
         self.intervals = np.array(self.intervals)
         next_idx = random.choice(np.arange(candidates.shape[0]))
         next = candidates[next_idx]
@@ -45,13 +52,13 @@ class BO(object):
             sys.stdout.flush()
             value = 0.0
 
-            if hasattr(self.acquison, "t"):
-                self.acquison.t += 1
             # train clf
             # if specify valid data
             if valid_x is not None and valid_y is not None:
                 clf = self.make(map_to_origin(next, self.intervals))
                 value = self.eval(clf, train_x, train_y, valid_x, valid_y)
+                if pred_flag:
+                    pred_y[i] = self.pred(clf, test_x)
                 del clf
             else:
                 kf = KFold(train_x.shape[0], n_folds=self.fold_num)
@@ -59,32 +66,41 @@ class BO(object):
                     clf = self.make(map_to_origin(next, self.intervals))
                     value += self.eval(clf, train_x[train_idx], train_y[train_idx], train_x[valid_idx], train_y[valid_idx])
                     del clf
+                if pred_flag:
+                    clf = self.make(map_to_origin(next, self.intervals))
+                    dammy = self.eval(clf, train_x, train_y, train_x[valid_idx], train_y[valid_idx])
+                    pred_y[i] = self.pred(clf, test_x)
+                    del clf
                 value /= (1.0 * self.fold_num)
 
             # decide next hyper-params in candidates
             if i == 0:
+                values = np.array(value)
                 next_idx = random.choice(np.arange(candidates.shape[0]))
                 next = candidates[next_idx]
-                values = np.array(value)
             else:
                 values = np.append(values, value)
+                if hasattr(self.acquison, "best"):
+                    self.acquison.best = np.max(values)
+
                 gaussian_process = gp.GP(kernel_name=self.kernel, iprint=False)
                 gaussian_process.fit(params, values)
                 mean, var = gaussian_process.decision_function(candidates)
+                del gaussian_process
+
                 next_idx = self.acquison.calc(mean, var)
                 next = candidates[next_idx]
-                del gaussian_process
-                self.acquison.gamma = np.delete(self.acquison.gamma, next_idx, 0)
+
             # delete the next hyper-params in candidates
             candidates = np.delete(candidates, next_idx, 0)
             params = np.vstack((params, next))
 
         print ("Optimizing complete.")
 
-        return map_to_origin(params, self.intervals), values
-
+        if not pred_flag:
+            return map_to_origin(params, self.intervals), values
+        else:
+            return map_to_origin(params, self.intervals), values, pred_y
 
 def map_to_origin(x, intervals):
     return intervals[:, 0] + x * (intervals[:, 1] - intervals[:, 0])
-
-
