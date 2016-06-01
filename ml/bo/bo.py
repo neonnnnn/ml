@@ -22,7 +22,7 @@ class BO(object):
         else:
             self.acquison = acquison.get_acquison(acq)()
 
-    def fit(self, train_x, train_y, valid_x=None, valid_y=None, test_x = None):
+    def fit(self, train_x, train_y, valid_x=None, valid_y=None, test_x=None):
         print ("Making candidates ...")
 
         pred_flag = False
@@ -41,11 +41,13 @@ class BO(object):
             candidates = np.array(list(itertools.product(*grid_list)))
 
         self.intervals = np.array(self.intervals)
+
+        # init hyperparameters and delete in candidates
         next_idx = random.choice(np.arange(candidates.shape[0]))
         next = candidates[next_idx]
         candidates = np.delete(candidates, next_idx, 0)
-
         params = np.array(next)
+
         print ("Optimizing ...")
         for i in xrange(self.opt_times):
             sys.stdout.write("\r Iteration:%d/%d" % (i + 1, self.opt_times))
@@ -60,6 +62,7 @@ class BO(object):
                 if pred_flag:
                     pred_y[i] = self.pred(clf, test_x)
                 del clf
+            # else(cross-validation)
             else:
                 kf = KFold(train_x.shape[0], n_folds=self.fold_num)
                 for train_idx, valid_idx in kf:
@@ -73,7 +76,7 @@ class BO(object):
                     del clf
                 value /= (1.0 * self.fold_num)
 
-            # decide next hyper-params in candidates
+            # decide next hyperparameters in candidates
             if i == 0:
                 values = np.array(value)
                 next_idx = random.choice(np.arange(candidates.shape[0]))
@@ -91,7 +94,7 @@ class BO(object):
                 next_idx = self.acquison.calc(mean, var)
                 next = candidates[next_idx]
 
-            # delete the next hyper-params in candidates
+            # delete next hyperparameters in candidates
             candidates = np.delete(candidates, next_idx, 0)
             params = np.vstack((params, next))
 

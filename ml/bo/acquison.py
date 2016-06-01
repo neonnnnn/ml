@@ -27,7 +27,7 @@ class UCB(object):
         
     def calc(self, mean, var):
         self.t += 1
-        tau = 2 * ((self.d / 2 + 2) * np.log(self.t) + 2*np.log(np.pi) - np.log(3 * self.delta))
+        tau = 2 * ((self.d / 2. + 2) * np.log(self.t) + 2*np.log(np.pi) - np.log(3 * self.delta))
         next_idx = np.argmax(mean + np.sqrt(self.nu * tau * var))
 
         return next_idx
