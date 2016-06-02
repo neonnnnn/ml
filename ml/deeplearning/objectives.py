@@ -4,9 +4,8 @@ import theano.tensor as T
 
 
 class MulticlassLogLoss(object):
-    def __init__(self, weight=1., reg=None):
+    def __init__(self, weight=1.):
         self.weight = weight
-        self.reg = reg
 
     def get_output(self, y, p_y_given_x):
         # if categorical variables
@@ -48,9 +47,8 @@ class KL(object):
 
 
 class MeanSquaredError(object):
-    def __init__(self, weight=1., reg=None):
+    def __init__(self, weight=1.):
         self.weight = weight
-        self.reg = reg
 
     def get_output(self, y, p_y_given_x):
         loss = T.mean(T.sum(T.square(y - p_y_given_x), axis=1))

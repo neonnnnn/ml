@@ -55,11 +55,35 @@ class Sequential(object):
 
         return output
 
+    def get_loss_output(self, y, output):
+        if type(self.loss) == list:
+            loss = 0.
+            for i in range(len(self.loss)):
+                name = self.loss[i].__class__.__name__
+                if name == "L2Regularization" or name == "L1Regularization":
+                    loss += self.loss[i].get_output(self.layers)
+                else:
+                    loss += self.loss[i].get_output(y, output)
+        else:
+            loss = self.loss.get_output(y, output)
+
+        return loss
+
+    def get_loss_output_nosymbol(self, y, output):
+        if type(self.loss) == list:
+            loss = 0.
+            for i in len(self.loss):
+                if hasattr(self.loss[i], "get_output_no_symbol"):
+                    loss += self.loss[i].get_output_no_symbol(self.layers)
+        else:
+            loss = self.loss.get_output_no_symbol(y, output)
+
+        return loss
+
     # get train function
     def get_train_function(self, x, y):
         output = self.get_top_output_train(x)
-        cost = 0
-        cost += self.loss.get_output(y, output)
+        cost = self.get_loss_output(y, output)
         updates = self.opt.get_update(cost, self.params)
 
         return theano.function(inputs=[x, y], outputs=cost, updates=updates)
@@ -160,7 +184,6 @@ class Sequential(object):
         n_train_batches = x_train.shape[0] / self.batch_size
 
         if self.iprint:
-            print ('loss function:'), (self.loss.__class__.__name__)
             print ('optimization:'), (self.opt.__class__.__name__)
             print ('batch_size:'), (self.batch_size)
             print ('nb_epoch:'), (self.nb_epoch)
