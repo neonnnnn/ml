@@ -269,7 +269,7 @@ class Sequential(object):
     def score(self, data_x, data_y):
         pred = self.predict(data_x)
         error = utils.num_of_error(data_y, pred)
-        accuracy = (1.0 * error) / data_y.shape[0]
+        accuracy = 1 - (1.0 * error) / data_y.shape[0]
         return accuracy
 
     def save_weights(self, layer_id, filename):

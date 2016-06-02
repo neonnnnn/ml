@@ -27,8 +27,9 @@ if __name__ == '__main__':
         score = clf.score(valid_x, valid_y)
         return score
 
-    intervals = [[0.001, 1.], [0.01, 1.]]
-    opt = bo.BO(make=make, eval=eval, intervals=intervals, opt_times=100, acq="MI")
+
+    intervals = [[0.001, 1.], [0.1, 1.]]
+    opt = bo.BO(make=make, eval=eval, intervals=intervals, opt_times=100, acq="UCB")
     params, values = opt.fit(x_train, y_train, x_test, y_test)
     # params, values = opt.fit(x_train, y_train, x_test, y_test)
     np.savetxt("bo_logistic_params.txt", params)
