@@ -81,7 +81,7 @@ class Dense(object):
         return self.output
         
     def get_output_train(self, input):
-        self.output = T.dot(input, self.W) + self.b
+        self.output_train = T.dot(input, self.W) + self.b
         if self.batchnorm is not None:
             self.output = self.output.get_output_train(self.output)
         if self.dropout is not None:
@@ -413,5 +413,3 @@ class Decoder(object):
     def get_output_train(self, input):
         self.output_train = self.get_output(input)
         return self.output_train
-
-

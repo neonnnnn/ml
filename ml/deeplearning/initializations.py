@@ -28,4 +28,4 @@ def he_conv_normal(layers, shape):
 
 
 def get_init(identifier):
-    return get_from_module(identifier, globals(), 'initializations')
+    return utils.get_from_module(identifier, globals(), 'initializations')

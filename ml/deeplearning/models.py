@@ -4,21 +4,22 @@ import numpy as np
 import theano
 import theano.tensor as T
 import optimizers
-import objectives
 from .. import utils
 import scipy.sparse as sp
 
 
 class Sequential(object):
-    def __init__(self, n_in, rng=np.random.RandomState(0)):
+    def __init__(self, n_in, loss, rng=np.random.RandomState(0), opt=optimizers.SGD(), batch_size=100, nb_epoch=100, shuffle=True, iprint=True):
+        self.n_in = n_in
         self.rng = rng
+        self.loss = loss
+        self.opt = opt
+        self.batch_size = batch_size
+        self.nb_epoch = nb_epoch
+        self.shuffle = shuffle
+        self.iprint = iprint
         self.params = []
         self.layers = []
-        self.opt = None
-        self.loss = None
-        self.batch_size = None
-        self.nb_epoch = None
-        self.n_in = n_in
 
     # add layer
     def add(self, this_layer):
@@ -78,8 +79,9 @@ class Sequential(object):
                 batch_end = batch_start + self.batch_size
                 train_loss += [train_model(x_train[batch_start:batch_end].toarray(), y_train[batch_start:batch_end])]
                 batch_start += self.batch_size
-                utils.progbar(i + 1, n_batches)
-                sys.stdout.write(" batches")
+                if self.iprint:
+                    utils.progbar(i + 1, n_batches)
+                    sys.stdout.write(" batches")
             if batch_end != x_train.shape[0]:
                 train_loss += [train_model(x_train[batch_end:].toarray(), y_train[batch_end:])]
         else:
@@ -87,12 +89,13 @@ class Sequential(object):
                 batch_end = batch_start + self.batch_size
                 train_loss += [train_model(x_train[batch_start:batch_end], y_train[batch_start:batch_end])]
                 batch_start += self.batch_size
-                utils.progbar(i+1, n_batches)
-                sys.stdout.write(" batches")
+                if self.iprint:
+                    utils.progbar(i+1, n_batches)
+                    sys.stdout.write(" batches")
             if batch_end != x_train.shape[0]:
                 train_loss += [train_model(x_train[batch_end:], y_train[batch_end:])]
-
-        sys.stdout.write(', train_loss:%.5f' % np.mean(train_loss))
+        if self.iprint:
+            sys.stdout.write(', train_loss:%.5f' % np.mean(train_loss))
 
     def calc_error_rate(self, x, y, model, n_batches):
         error = 0.0
@@ -146,25 +149,7 @@ class Sequential(object):
 
         return np.mean(loss)
 
-    # define batch_size, nb_epoch, loss and optimization method
-    def compile(self, batch_size=100, nb_epoch=100, opt=optimizers.SGD(), loss=objectives.MulticlassLogLoss()):
-        if type(opt) == str:
-            opt = optimizers.get_from_module(opt)
-
-        self.opt = opt
-        self.loss = loss
-        self.batch_size = batch_size
-        self.nb_epoch = nb_epoch
-        print ('loss function:'), (self.loss.__class__.__name__)
-        print ('optimization:'), (self.opt.__class__.__name__)
-        print ('batch_size:'), (self.batch_size)
-        print ('nb_epoch:'), (self.nb_epoch)
-
-    def fit(self, x_train, y_train, x_valid=None, y_valid=None, shuffle=True, valid_mode='loss'):
-        if self.opt is None or self.loss is None:
-            print ('Please compile model. Optimization and Loss is not defined.')
-            raise Exception('')
-
+    def fit(self, x_train, y_train, x_valid=None, y_valid=None, valid_mode='loss'):
         x = T.matrix('x')
         if y_train[0].ndim == 0:
             y = T.ivector('y')
@@ -173,16 +158,24 @@ class Sequential(object):
         else:
             raise Exception('Label Error:label must be scalar or vector. If not miss, you must rewrite model, objective etc.')
         n_train_batches = x_train.shape[0] / self.batch_size
-        print ('n_layers:'), (len(self.layers))
+
+        if self.iprint:
+            print ('loss function:'), (self.loss.__class__.__name__)
+            print ('optimization:'), (self.opt.__class__.__name__)
+            print ('batch_size:'), (self.batch_size)
+            print ('nb_epoch:'), (self.nb_epoch)
+            print ('n_layers:'), (len(self.layers))
 
         if self.layers[0].__class__.__name__ == 'Conv':
             x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
 
-        print ('making model ...')
+        if self.iprint:
+            print ('making model ...')
 
         # get the output of each layers and define train_model
         train_model = self.get_train_function(x, y)
-        print ('making complete.')
+        if self.iprint:
+            print ('making complete.')
 
         valid_flag = False
         # if there are valid data, define valid_model and calc valid_loss
@@ -191,17 +184,20 @@ class Sequential(object):
             best_valid_loss = np.inf
             n_valid_batches = x_valid.shape[0] / self.batch_size
             valid_flag = True
-            print ('validation:True')
+            if self.iprint:
+                print ('validation:True')
 
         start_time = timeit.default_timer()
         # training start
-        print ('training ...')
+        if self.iprint:
+            print ('training ...')
         i = 0
         while i < self.nb_epoch:
             i += 1
-            if shuffle:
+            if self.shuffle:
                 x_train, y_train = utils.shuffle(x_train, y_train)
-            print ('epoch:'), (i)
+            if self.iprint:
+                print ('epoch:'), (i)
             start_batch_time = timeit.default_timer()
             self.batch_train(x_train, y_train, train_model, n_train_batches)
 
@@ -209,10 +205,12 @@ class Sequential(object):
             if valid_flag:
                 if valid_mode == "error_rate":
                     this_valid_loss = self.calc_error_rate(x_valid, y_valid, valid_model, n_valid_batches)
-                    sys.stdout.write(', valid_error_rate:%.4f%%' % this_valid_loss)
+                    if self.iprint:
+                        sys.stdout.write(', valid_error_rate:%.4f%%' % this_valid_loss)
                 elif valid_mode == "loss":
                     this_valid_loss = self.calc_loss(x_valid, y_valid, valid_model, n_valid_batches)
-                    sys.stdout.write(', valid_loss:%.4f' % this_valid_loss)
+                    if self.iprint:
+                        sys.stdout.write(', valid_loss:%.4f' % this_valid_loss)
                 else:
                     raise Exception("valid_mode error: valid_mode must be error_rate or loss.")
 
@@ -221,24 +219,26 @@ class Sequential(object):
                     best_valid_loss = this_valid_loss
 
             end_batch_time = timeit.default_timer()
-            sys.stdout.write(', %.2fs' % (end_batch_time - start_batch_time))
-            sys.stdout.write("\n")
+            if self.iprint:
+                sys.stdout.write(', %.2fs' % (end_batch_time - start_batch_time))
+                sys.stdout.write("\n")
 
         # training end
         end_time = timeit.default_timer()
-        if valid_flag:
-            print('Training complete. Best validation score of %f %% ' % best_valid_loss)
-        else:
-            print('Training complete.')
-        print (' ran for %.2fm' % ((end_time - start_time) / 60.))
+        if self.iprint:
+            if valid_flag:
+                print('Training complete. Best validation score of %f %% ' % best_valid_loss)
+            else:
+                print('Training complete.')
+            print (' ran for %.2fm' % ((end_time - start_time) / 60.))
 
     def predict(self, data_x):
         x = T.matrix('x')
         if self.layers[0].__class__.__name__ == 'Conv':
             x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
         test_model = self.get_pred_function(x)
-
-        print ('predicting...')
+        if self.iprint:
+            print ('predicting...')
         n_pred_batches = data_x.shape[0] / self.batch_size
         batch_start = 0
         if sp.issparse(data_x):
@@ -261,17 +261,19 @@ class Sequential(object):
                 batch_start += self.batch_size
             if batch_end != x.shape[0]:
                 output = np.vstack((output, test_model(data_x[batch_end:])))
-
-        print ('predict complete.')
+        if self.iprint:
+            print ('predict complete.')
 
         return output
+
+    def score(self, data_x, data_y):
+        pred = self.predict(data_x)
+        error = utils.num_of_error(data_y, pred)
+        accuracy = (1.0 * error) / data_y.shape[0]
+        return accuracy
 
     def save_weights(self, layer_id, filename):
         if hasattr(self.layers[layer_id], 'W'):
             np.savetxt(filename, self.layers[layer_id].W.get_value(), delimiter=',')
         else:
             print ('layer%d doesnt have weights.')
-
-
-
-

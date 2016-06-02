@@ -8,7 +8,8 @@ import sys
 
 
 class BO(object):
-    def __init__(self, make, eval, intervals, pred=None, grid=1000, fold_num=10, opt_times=100, kernel="Matern52", acq="MI", acqparams=None):
+    def __init__(self, make, eval, intervals, pred=None, grid=1000, fold_num=10, opt_times=100, kernel="Matern52", acq="MI", acqparams=None,
+                 candidates=None, values=None, params=None):
         self.make = make
         self.eval = eval
         self.intervals = intervals
@@ -21,6 +22,9 @@ class BO(object):
             self.acquison = acquison.get_acquison(acq)(acqparams)
         else:
             self.acquison = acquison.get_acquison(acq)()
+        self.candidates = candidates
+        self.values = values
+        self.params = params
 
     def fit(self, train_x, train_y, valid_x=None, valid_y=None, test_x=None):
         print ("Making candidates ...")
@@ -33,20 +37,22 @@ class BO(object):
         if hasattr(self.acquison, "d"):
             self.acquison.d = len(self.intervals)
 
-        if type(self.grid) == int:
-            grid_list = np.arange(self.grid, dtype=np.float) / self.grid
-            candidates = np.array(list(itertools.product(grid_list, repeat=len(self.intervals))))
-        else:
-            grid_list = [np.arange(self.grid[i], dtype=np.float) / self.grid[i] for i in xrange(len(self.intervals))]
-            candidates = np.array(list(itertools.product(*grid_list)))
+        if self.candidates is None:
+            if type(self.grid) == int:
+                grid_list = np.arange(self.grid, dtype=np.float) / self.grid
+                self.candidates = np.array(list(itertools.product(grid_list, repeat=len(self.intervals))))
+            else:
+                grid_list = [np.arange(self.grid[i], dtype=np.float) / self.grid[i] for i in xrange(len(self.intervals))]
+                self.candidates = np.array(list(itertools.product(*grid_list)))
 
         self.intervals = np.array(self.intervals)
 
-        # init hyperparameters and delete in candidates
-        next_idx = random.choice(np.arange(candidates.shape[0]))
-        next = candidates[next_idx]
-        candidates = np.delete(candidates, next_idx, 0)
-        params = np.array(next)
+        if self.params is None:
+            # init hyperparameters and delete in candidates
+            next_idx = random.choice(np.arange(self.candidates.shape[0]))
+            next = self.candidates[next_idx]
+            self.candidates = np.delete(self.candidates, next_idx, 0)
+            self.params = np.array(next)
 
         print ("Optimizing ...")
         for i in xrange(self.opt_times):
@@ -77,33 +83,34 @@ class BO(object):
                 value /= (1.0 * self.fold_num)
 
             # decide next hyperparameters in candidates
-            if i == 0:
-                values = np.array(value)
-                next_idx = random.choice(np.arange(candidates.shape[0]))
-                next = candidates[next_idx]
+            if self.params.ndim == 1:
+                self.values = np.array(value)
+                next_idx = random.choice(np.arange(self.candidates.shape[0]))
+                next = self.candidates[next_idx]
             else:
-                values = np.append(values, value)
+                self.values = np.append(self.values, value)
                 if hasattr(self.acquison, "best"):
-                    self.acquison.best = np.max(values)
+                    self.acquison.best = np.max(self.values)
 
                 gaussian_process = gp.GP(kernel_name=self.kernel, iprint=False)
-                gaussian_process.fit(params, values)
-                mean, var = gaussian_process.decision_function(candidates)
+                gaussian_process.fit(self.params, self.values)
+                mean, var = gaussian_process.decision_function(self.candidates)
                 del gaussian_process
 
                 next_idx = self.acquison.calc(mean, var)
-                next = candidates[next_idx]
+                next = self.candidates[next_idx]
 
             # delete next hyperparameters in candidates
-            candidates = np.delete(candidates, next_idx, 0)
-            params = np.vstack((params, next))
+            self.candidates = np.delete(self.candidates, next_idx, 0)
+            self.params = np.vstack((self.params, next))
 
         print ("Optimizing complete.")
 
         if not pred_flag:
-            return map_to_origin(params, self.intervals), values
+            return map_to_origin(self.params, self.intervals), self.values
         else:
-            return map_to_origin(params, self.intervals), values, pred_y
+            return map_to_origin(self.params, self.intervals), self.values, pred_y
+
 
 def map_to_origin(x, intervals):
     return intervals[:, 0] + x * (intervals[:, 1] - intervals[:, 0])
