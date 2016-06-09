@@ -104,7 +104,7 @@ class BO(object):
             self.candidates = np.delete(self.candidates, next_idx, 0)
             self.params = np.vstack((self.params, next))
 
-        print ("Optimizing complete.")
+        print ("\nOptimizing complete.")
 
         if not pred_flag:
             return map_to_origin(self.params, self.intervals), self.values

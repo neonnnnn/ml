@@ -13,7 +13,7 @@ if __name__ == '__main__':
 
 
     def make(params):
-        rng = np.random.RandomState(1234)
+        rng = np.random.RandomState(123)
         opt = SGD(lr=params[0], momentum=params[1])
         loss = [MulticlassLogLoss(), L2Regularization(params[2])]
         clf = Sequential(784, loss=loss, rng=rng, opt=opt, batch_size=20, nb_epoch=100, iprint=False)
@@ -30,22 +30,22 @@ if __name__ == '__main__':
     intervals = [[0.001, 1.], [0.01, 1.], [0.001, 0.01]]
     grid = [1000, 100, 10]
 
-    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid, opt_times=100, acq="EI")
+    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid, opt_times=200, acq="EI")
     params, values = opt.fit(x_train, y_train, x_test, y_test)
     # params, values = opt.fit(x_train, y_train, x_test, y_test)
-    np.savetxt("bo_logistic_params_EI.txt", params)
-    np.savetxt("bo_logistic_values_EI.txt", values)
+    np.savetxt("bo_logistic_params_EI_1.txt", params)
+    np.savetxt("bo_logistic_values_EI_1.txt", values)
     del opt
 
-    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid, opt_times=100, acq="UCB")
+    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid, opt_times=200, acq="UCB")
     params, values = opt.fit(x_train, y_train, x_test, y_test)
     # params, values = opt.fit(x_train, y_train, x_test, y_test)
-    np.savetxt("bo_logistic_params_UCB.txt", params)
-    np.savetxt("bo_logistic_values_UCB.txt", values)
+    np.savetxt("bo_logistic_params_UCB_1.txt", params)
+    np.savetxt("bo_logistic_values_UCB_1.txt", values)
     del opt
 
-    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid, opt_times=100, acq="MI")
+    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid, opt_times=200, acq="MI")
     params, values = opt.fit(x_train, y_train, x_test, y_test)
     # params, values = opt.fit(x_train, y_train, x_test, y_test)
-    np.savetxt("bo_logistic_params_MI.txt", params)
-    np.savetxt("bo_logistic_values_MI.txt", values)
+    np.savetxt("bo_logistic_params_MI_1.txt", params)
+    np.savetxt("bo_logistic_values_MI_1.txt", values)
