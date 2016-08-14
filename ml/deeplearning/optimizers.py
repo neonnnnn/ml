@@ -4,7 +4,7 @@ import theano.tensor as T
 
 
 class SGD(object):
-    def __init__(self, lr=0.01, momentum=0.0):
+    def __init__(self, lr=0.001, momentum=0.9):
         self.lr = theano.shared(np.asarray(lr, dtype=theano.config.floatX))
         self.momentum = theano.shared(np.asarray(momentum, dtype=theano.config.floatX))
 
@@ -23,7 +23,7 @@ class SGD(object):
 
 
 class AdaGrad(object):
-    def __init__(self, lr=1., eps=1.):
+    def __init__(self, lr=0.01, eps=1e-6):
         self.lr = theano.shared(np.asarray(lr, dtype=theano.config.floatX))
         self.eps = eps
 
@@ -43,7 +43,7 @@ class AdaGrad(object):
 
 
 class AdaDelta(object):
-    def __init__(self, lr=1., eps=1e-6, rho=0.95):
+    def __init__(self, lr=0.01, eps=1e-6, rho=0.95):
         self.lr = theano.shared(np.asarray(lr, dtype=theano.config.floatX))
         self.eps = theano.shared(np.asarray(eps, dtype=theano.config.floatX))
         self.rho = theano.shared(np.asarray(rho, dtype=theano.config.floatX))

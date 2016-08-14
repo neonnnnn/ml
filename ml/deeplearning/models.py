@@ -6,20 +6,21 @@ import theano.tensor as T
 import optimizers
 from .. import utils
 import scipy.sparse as sp
+import objectives
 
 
 class Sequential(object):
-    def __init__(self, n_in, loss, rng=np.random.RandomState(0), opt=optimizers.SGD(), batch_size=100, nb_epoch=100, shuffle=True, iprint=True):
+    def __init__(self, n_in,  rng=np.random.RandomState(0), iprint=True):
         self.n_in = n_in
         self.rng = rng
-        self.loss = loss
-        self.opt = opt
-        self.batch_size = batch_size
-        self.nb_epoch = nb_epoch
-        self.shuffle = shuffle
-        self.iprint = iprint
         self.params = []
         self.layers = []
+        self.loss = None
+        self.opt = None
+        self.batch_size = None
+        self.nb_epoch = None
+        self.function = None
+        self.iprint = iprint
 
     # add layer
     def add(self, this_layer):
@@ -39,44 +40,31 @@ class Sequential(object):
 
     # set output
     def get_top_output(self, x):
-        n_layers = len(self.layers)
         output = self.layers[0].get_output(x)
-        for i in xrange(1, n_layers):
-            output = self.layers[i].get_output(output)
+        for layer in self.layers[1:]:
+            output = layer.get_output(output)
 
         return output
 
     # set output for train
     def get_top_output_train(self, x):
-        n_layers = len(self.layers)
         output = self.layers[0].get_output_train(x)
-        for i in xrange(1, n_layers):
-            output = self.layers[i].get_output_train(output)
+        for layer in self.layers[1:]:
+            output = layer.get_output_train(output)
 
         return output
 
     def get_loss_output(self, y, output):
         if type(self.loss) == list:
             loss = 0.
-            for i in range(len(self.loss)):
-                name = self.loss[i].__class__.__name__
+            for l in self.losses:
+                name = l.__name__
                 if name == "L2Regularization" or name == "L1Regularization":
-                    loss += self.loss[i].get_output(self.layers)
+                    loss += l.get_output(self.layers)
                 else:
-                    loss += self.loss[i].get_output(y, output)
+                    loss += l.get_output(y, output)
         else:
             loss = self.loss.get_output(y, output)
-
-        return loss
-
-    def get_loss_output_nosymbol(self, y, output):
-        if type(self.loss) == list:
-            loss = 0.
-            for i in len(self.loss):
-                if hasattr(self.loss[i], "get_output_no_symbol"):
-                    loss += self.loss[i].get_output_no_symbol(self.layers)
-        else:
-            loss = self.loss.get_output_no_symbol(y, output)
 
         return loss
 
@@ -156,22 +144,33 @@ class Sequential(object):
             for i in xrange(n_batches):
                 batch_end = batch_start + self.batch_size
                 pred = model(x[batch_start:batch_end].toarray())
-                loss += [self.loss.get_output_no_symbol(y[batch_start:batch_end], pred)]
+                loss += [self.get_loss_output(y[batch_start:batch_end], pred)]
                 batch_start += self.batch_size
             if batch_end != x.shape[0]:
                 pred = model(x[batch_end:].toarray())
-                loss += [self.loss.get_output_no_symbol(y[batch_end:], pred)]
+                loss += [self.loss.get_output(y[batch_end:], pred)]
         else:
             for i in xrange(n_batches):
                 batch_end = batch_start + self.batch_size
                 pred = model(x[batch_start:batch_end])
-                loss += [self.loss.get_output_no_symbol(y[batch_start:batch_end], pred)]
+                loss += [self.get_loss_output(y[batch_start:batch_end], pred)]
                 batch_start += self.batch_size
             if batch_end != x.shape[0]:
                 pred = model(x[batch_end:])
-                loss += [self.loss.get_output_no_symbol(y[batch_end:], pred)]
+                loss += [self.get_loss_output(y[batch_end:], pred)]
 
         return np.mean(loss)
+
+    # define batch_size, nb_epoch, loss and optimization method
+    def compile(self, batch_size=128, nb_epoch=100, opt=optimizers.SGD(), loss=objectives.MulticlassLogLoss()):
+        if type(opt) == str:
+            opt = optimizers.get_from_module(opt)
+
+        self.opt = opt
+        self.loss = loss
+        self.batch_size = batch_size
+        self.nb_epoch = nb_epoch
+        self.function = None
 
     def fit(self, x_train, y_train, x_valid=None, y_valid=None, valid_mode='loss'):
         x = T.matrix('x')
@@ -196,7 +195,10 @@ class Sequential(object):
             print ('making model ...')
 
         # get the output of each layers and define train_model
-        train_model = self.get_train_function(x, y)
+        if self.function is None:
+            self.function = self.get_train_function(x, y)
+        train_model = self.function
+
         if self.iprint:
             print ('making complete.')
 
@@ -260,33 +262,41 @@ class Sequential(object):
         if self.layers[0].__class__.__name__ == 'Conv':
             x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
         test_model = self.get_pred_function(x)
-        if self.iprint:
-            print ('predicting...')
+
+        print ('predicting...')
         n_pred_batches = data_x.shape[0] / self.batch_size
-        batch_start = 0
+
         if sp.issparse(data_x):
-            for i in xrange(n_pred_batches):
+            output = test_model(data_x[0:self.batch_size].toarray())
+            batch_start = self.batch_size
+            for i in xrange(n_pred_batches - 1):
                 batch_end = batch_start + self.batch_size
-                if i == 0:
-                    output = test_model(data_x[batch_start:batch_end].toarray())
+                if output.ndim == 1:
+                    output = np.append(output, test_model(data_x[batch_start:batch_end].toarray()))
                 else:
                     output = np.vstack((output, test_model(data_x[batch_start:batch_end].toarray())))
                 batch_start += self.batch_size
             if batch_end != x.shape[0]:
-                output = np.vstack((output, test_model(data_x[batch_end:].toarray())))
+                if output.ndim == 1:
+                    output = np.append(output, test_model(data_x[batch_start:].toarray()))
+                else:
+                    output = np.vstack((output, test_model(data_x[batch_start:].toarray())))
         else:
-            for i in xrange(n_pred_batches):
+            output = test_model(data_x[0:self.batch_size])
+            batch_start = self.batch_size
+            for i in xrange(n_pred_batches - 1):
                 batch_end = batch_start + self.batch_size
-                if i == 0:
-                    output = test_model(data_x[batch_start:batch_end])
+                if output.ndim == 1:
+                    output = np.append(output, test_model(data_x[batch_start:batch_end]))
                 else:
                     output = np.vstack((output, test_model(data_x[batch_start:batch_end])))
                 batch_start += self.batch_size
             if batch_end != x.shape[0]:
-                output = np.vstack((output, test_model(data_x[batch_end:])))
-        if self.iprint:
-            print ('predict complete.')
-
+                if output.ndim == 1:
+                    output = np.append(output, test_model(data_x[batch_start:]))
+                else:
+                    output = np.vstack((output, test_model(data_x[batch_start:])))
+        print ('predict complete.')
         return output
 
     def score(self, data_x, data_y):

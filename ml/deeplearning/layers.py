@@ -46,7 +46,6 @@ class Dense(object):
             self.fan_in = self.n_in
             self.fan_out = self.n_out
             self.W_values = np.asarray(self.init(self, (self.n_in, self.n_out)), dtype=theano.config.floatX)
-
         else:   # i.e, add DenseLayer with W
             if not isinstance(self.W, np.ndarray):
                 raise Exception("type(W_values) must be numpy.ndarray.")
@@ -73,10 +72,10 @@ class Dense(object):
         self.output = T.dot(input, self.W) + self.b
         if self.batchnorm is not None:
             self.output = self.output.get_output(self.output)
-        if self.dropout is not None:
-            self.output = self.dropout.get_output(self.output)
         if self.activation is not None:
             self.output = self.activation.get_output(self.output)
+        if self.dropout is not None:
+            self.output = self.dropout.get_output(self.output)
 
         return self.output
         
@@ -84,10 +83,10 @@ class Dense(object):
         self.output_train = T.dot(input, self.W) + self.b
         if self.batchnorm is not None:
             self.output = self.output.get_output_train(self.output)
-        if self.dropout is not None:
-            self.output = self.dropout.get_output_train(self.output)
         if self.activation is not None:
             self.output = self.activation.get_output_train(self.output)
+        if self.dropout is not None:
+            self.output = self.dropout.get_output_train(self.output)
 
         return self.output_train
 
@@ -125,7 +124,7 @@ class BatchNormalization(object):
     # This class is incomplete. In above-mentioned paper, mu and sig for inference is estimated by training data, but this code
     # estimated these by inference mini-batch.
 
-    def __init__(self, eps=0.01):
+    def __init__(self, eps=1e-5):
         self.have_params = True
         self.n_in = None
         self.n_out = None
@@ -256,7 +255,6 @@ class Conv(object):
                 raise Exception("Layer-dtypeError. b_values.dtype must be theano.config.flaotX.")
         self.b = theano.shared(value=self.b_values, borrow=True)
 
-        # parameters of the model
         self.params = [self.W, self.b]
 
     def get_output(self, input):
@@ -346,33 +344,6 @@ class GaussianNoise(object):
     def get_output_train(self, input):
         srng = theano.tensor.shared_randomstreams.RandomStreams(self.rng.randint(999999))
         self.output_train = input + srng.normal(size=input.shape, avg=0, std=self.std,  dtype=input.dtype)
-        return self.output_train
-
-
-class BinominalNoise(object):
-    def __init__(self, p=0.3):
-        self.have_params = False
-        self.n_in = None
-        self.n_out = None
-        self.rng = None
-        self.p = p
-        self.output = None
-        self.output_train = None
-
-    def set_rng(self, rng):
-        self.rng = rng
-
-    def set_input_shape(self, n_in):
-        self.n_in = n_in
-        self.n_out = n_in
-
-    def get_output(self, input):
-        self.output = input
-        return self.output
-
-    def get_output_train(self, input):
-        srng = theano.tensor.shared_randomstreams.RandomStreams(self.rng.randint(999999))
-        self.output_train = input * srng.binomial(size=input.shape, n=1, p=1-self.p, dtype=input.dtype)
         return self.output_train
 
 
