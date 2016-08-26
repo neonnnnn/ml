@@ -2,6 +2,7 @@ import numpy as np
 from ml.bo import bo
 import load_mnist
 from ml.svm import svc
+
 if __name__ == '__main__':
     dataset = load_mnist.load_data()
     x_train, y_train = dataset[0]

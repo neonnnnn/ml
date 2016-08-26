@@ -80,7 +80,6 @@ def visualize(data, imshape, figshape, filename, nomarlization_flag=True):
         plt.gray()
         plt.axis('off')
         pos += 1
-    plt.show()
     plt.savefig(filename)
 
 

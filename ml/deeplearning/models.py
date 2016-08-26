@@ -23,20 +23,23 @@ class Sequential(object):
         self.iprint = iprint
 
     # add layer
-    def add(self, this_layer):
-        if hasattr(this_layer, 'rng'):
-            this_layer.set_rng(self.rng)
-
-        if len(self.layers) == 0:
-            this_layer.set_input_shape(self.n_in)
+    def add(self, this_layer, add_params=True):
+        if isinstance(this_layer, Sequential):
+            self.layers = self.layers + this_layer.layers
         else:
-            this_layer.set_input_shape(self.layers[len(self.layers)-1].n_out)
+            if hasattr(this_layer, 'rng'):
+                this_layer.set_rng(self.rng)
 
-        if this_layer.have_params:
-            this_layer.set_params()
-            self.params = self.params + this_layer.params
+            if len(self.layers) == 0:
+                this_layer.set_input_shape(self.n_in)
+            else:
+                this_layer.set_input_shape(self.layers[len(self.layers)-1].n_out)
 
-        self.layers = self.layers + [this_layer]
+            if this_layer.have_params and add_params:
+                this_layer.set_params()
+                self.params = self.params + this_layer.params
+
+            self.layers = self.layers + [this_layer]
 
     # set output
     def get_top_output(self, x):
