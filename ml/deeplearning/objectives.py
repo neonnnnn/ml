@@ -1,4 +1,5 @@
 import theano.tensor as T
+import numpy as np
 
 
 class CrossEntropy(object):
@@ -71,6 +72,7 @@ class L1Regularization(object):
                 L1_reg += abs(layer.W).sum()
 
         return self.weight * L1_reg
+
 
 
 

@@ -5,7 +5,8 @@ import initializations
 import activations
 from theano.tensor.signal import pool
 from theano.tensor.nnet import conv2d
-from theano.sandbox.cuda.dnn import dnn_conv, dnn_pool, dnn_gradinput
+from theano.sandbox.cuda.dnn import dnn_conv, dnn_pool, dnn_gradinput, GpuDnnConvDesc, GpuDnnConvGradI
+from theano.sandbox.cuda.basic_ops import gpu_alloc_empty, gpu_contiguous
 
 
 class Dense(object):
@@ -252,7 +253,7 @@ class Conv(object):
         self.W = theano.shared(value=self.W_values, borrow=True)
 
         if self.b_values is None:
-            self.b_values = np.zeros((self.nb_filter_shape[0],), dtype=theano.config.floatX)
+            self.b_values = np.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
         else:
             if not isinstance(self.b_values, np.ndarray):
                 raise Exception("Layer-typeError: type(b_values) must be numpy.ndarray.")
@@ -280,7 +281,7 @@ class Conv(object):
         return self.output_train
 
 
-class Deconv(object):
+class Deconv(Conv):
     def __init__(self, nb_filter, nb_height, nb_width, output_shape, border_mode='adapt', init='he_conv_normal', subsample=(1, 1),
                  W_values=None, b_values=None):
         self.have_params = True
@@ -301,6 +302,34 @@ class Deconv(object):
         self.subsample = subsample
         self.output = None
         self.output_train = None
+
+    def set_params(self):
+        self.fan_in = np.prod(self.filter_shape[1:])
+        self.fan_out = self.filter_shape[0] * np.prod(self.filter_shape[2:])
+
+        if self.W_values is None:
+            self.W_values = np.asarray(self.init(self, self.filter_shape), dtype=theano.config.floatX)
+        else:  # i.e, add DenseLayer with W
+            if not isinstance(self.W, np.ndarray):
+                raise Exception("type(W_values) must be numpy.ndarray.")
+            if self.W_values.shape != self.filter_shape:
+                raise Exception("W_values.shape must be (nb_filter, n_in[0], nb_height, nb_width).")
+            if self.W_values.dtype != theano.config.floatX:
+                raise Exception("W_values.dtype must be theano.config.floatX.")
+        self.W = theano.shared(value=self.W_values.reshape((self.filter_shape[1], self.filter_shape[0], self.filter_shape[2], self.filter_shape[3])), borrow=True)
+
+        if self.b_values is None:
+            self.b_values = np.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
+        else:
+            if not isinstance(self.b_values, np.ndarray):
+                raise Exception("Layer-typeError: type(b_values) must be numpy.ndarray.")
+            if self.b.shape != (self.nb_filter_shape[0],):
+                raise Exception("Layer-shapeError. b_values.shape must be (n_out,)")
+            if self.b_values.dtype != theano.config.flaotX:
+                raise Exception("Layer-dtypeError. b_values.dtype must be theano.config.flaotX.")
+        self.b = theano.shared(value=self.b_values, borrow=True)
+
+        self.params = [self.W, self.b]
 
     def set_rng(self, rng):
         self.rng = rng
@@ -336,6 +365,7 @@ class Deconv(object):
             elif self.n_out[1] < inf[0] & self.n_out[2] < inf[1]:
                 pad[0] = (inf[0] - self.n_out[1]) // 2
                 pad[1] = (inf[1] - self.n_out[2]) // 2
+                self.border_mode = pad
         else:
             raise ValueError('invalid border_mode {}, '
                              'which must be either "valid", "full", "half", an integer or a pair of integers'.format(self.border_mode))
@@ -345,44 +375,16 @@ class Deconv(object):
         if not ((inf[0] <= self.n_out[1] <= sup[0]) and (inf[1] <= self.n_out[2] <= sup[1])):
             raise ValueError("impossible output_shape. output = subsample * (input - 1) + filter - 2 * pad + a, a \in {0, \ldots , subsample-1}")
 
-    def set_params(self):
-        self.fan_in = np.prod(self.filter_shape[1:])
-        self.fan_out = self.filter_shape[0] * np.prod(self.filter_shape[2:])
-
-        if self.W_values is None:
-            self.W_values = np.asarray(self.init(self, self.filter_shape), dtype=theano.config.floatX)
-        else:  # i.e, add DenseLayer with W
-            if not isinstance(self.W, np.ndarray):
-                raise Exception("type(W_values) must be numpy.ndarray.")
-            if self.W_values.shape != self.filter_shape:
-                raise Exception("W_values.shape must be (nb_filter, n_in[0], nb_height, nb_width).")
-            if self.W_values.dtype != theano.config.floatX:
-                raise Exception("W_values.dtype must be theano.config.floatX.")
-        self.W = theano.shared(value=self.W_values, borrow=True)
-
-        if self.b_values is None:
-            self.b_values = np.zeros((self.nb_filter_shape[0],), dtype=theano.config.floatX)
-        else:
-            if not isinstance(self.b_values, np.ndarray):
-                raise Exception("Layer-typeError: type(b_values) must be numpy.ndarray.")
-            if self.b.shape != (self.nb_filter_shape[0],):
-                raise Exception("Layer-shapeError. b_values.shape must be (n_out,)")
-            if self.b_values.dtype != theano.config.flaotX:
-                raise Exception("Layer-dtypeError. b_values.dtype must be theano.config.flaotX.")
-        self.b = theano.shared(value=self.b_values, borrow=True)
-
-        self.params = [self.W, self.b]
-
     def get_output(self, input):
-        deconv_out = T.nnet.abstract_conv.conv2d_grad_wrt_inputs(
-            output_grad=input,
-            filters=self.W,
-            input_shape=[input.shape[0]] + self.n_out,
+        op = T.nnet.abstract_conv.AbstractConv2d_gradInputs(
+            imshp=(None, self.n_out[0], self.n_out[1], self.n_out[2]),
+            kshp=self.filter_shape,
             subsample=self.subsample,
-            border_mode=self.border_mode
-
+            border_mode=self.border_mode,
+            filter_flip=True
         )
-        self.output = deconv_out + self.b.dimshuffle(1, self.b.shape[0], 1, 1)
+        deconv_out = op(self.W, input, self.n_out[1:])
+        self.output = deconv_out + T.reshape(self.b, (1, self.filter_shape[0], 1, 1))
         return self.output
 
     def get_output_train(self, input):
@@ -392,25 +394,25 @@ class Deconv(object):
 
 class ConvCUDNN(Conv):
     def get_output(self, input):
-        conv_out = dnn_conv(imgs=input,
-                            filter=self.W,
-                            border_mode=self.border_mode,
-                            subsample=self.subsample
-                            )
-        self.output = conv_out + self.b.dimshuffle(1, self.b.shape[0], 1, 1)
+        deconv_out = dnn_conv(
+            imgs=input,
+            filter=self.W,
+            border_mode=self.border_mode,
+            subsample=self.subsample
+        )
+        self.output = deconv_out + T.reshape(self.b, (1, self.filter_shape[0], 1, 1))
         return self.output
 
 
 class DeconvCUDNN(Deconv):
     def get_output(self, input):
-        deconv_out = dnn_gradinput(
-            kers=self.W,
-            topgrad=input,
-            img_shp=[input.shape[0], self.n_out[0], self.n_out[1], self.n_out[2]],
-            subsample=self.subsample,
-            border_mode=self.border_mode
-        )
-        self.output = deconv_out + self.b.dimshuffle(1, self.b.shape[0], 1, 1)
+        img = gpu_contiguous(input)
+        kerns = gpu_contiguous(self.W)
+        desc = GpuDnnConvDesc(border_mode=self.border_mode, subsample=self.subsample,
+                              conv_mode="conv")(
+            gpu_alloc_empty(img.shape[0], kerns.shape[1], img.shape[2] * self.subsample[0], img.shape[3] * self.subsample[1]).shape, kerns.shape)
+        out = gpu_alloc_empty(img.shape[0], kerns.shape[1], img.shape[2] * self.subsample[0], img.shape[3] * self.subsample[1])
+        self.output = GpuDnnConvGradI()(kerns, img, out, desc) + T.reshape(self.b, (1, self.filter_shape[0], 1, 1))
         return self.output
 
     def get_output_train(self, input):
@@ -444,6 +446,52 @@ class Pool(object):
         return self.output_train
 
 
+class Maxout(object):
+    def __init__(self, n_out, size=4, dropout=None, activation=None, batchnorm=None, W_values=None, b_values=None, init='glorot_uniform'):
+        self.have_params = True
+        self.n_in = None
+        self.n_out = n_out
+        self.size = size
+        self.rng = None
+        self.W = None
+        self.W_values = W_values
+        self.b = None
+        self.b_values = b_values
+        self.init = initializations.get_init(init)
+        self.params = None
+        self.fan_in = None
+        self.fan_out = None
+        self.output = None
+        self.output_train = None
+
+    def set_rng(self, rng):
+        self.rng = rng
+
+    def set_input_shape(self, n_in):
+        self.n_in = n_in
+
+    def set_params(self):
+        self.fan_in = self.n_in
+        self.fan_out = self.n_out*self.size
+        self.W_values = np.asarray(self.init(self, (self.n_in, self.n_out*self.size)).reshape(self.size, self.n_in, self.n_out),
+                                   dtype=theano.config.floatX)
+
+        self.W = theano.shared(value=self.W_values, name='W', borrow=True)
+        if self.b_values is None:
+            self.b_values = np.zeros((self.size, self.n_out), dtype=theano.config.floatX)
+        self.b = theano.shared(value=self.b_values, name='b', borrow=True)
+
+        self.params = [self.W, self.b]
+
+    def get_output(self, input):
+        self.output = T.max(T.dot(input, self.W) + self.b, axis=1)
+        return self.output
+
+    def get_output_train(self, input):
+        self.output_train = self.get_output(input)
+        return self.output_train
+
+
 class Flatten(object):
     def __init__(self):
         self.have_params = False
@@ -457,7 +505,7 @@ class Flatten(object):
         self.n_out = self.n_in[0] * self.n_in[1] * self.n_in[2]
 
     def get_output(self, input):
-        self.output = input.flaten(2)
+        self.output = input.flatten(2)
         return self.output
 
     def get_output_train(self, input):
@@ -542,7 +590,7 @@ class Reshape(object):
         self.n_in = n_in
 
     def get_output(self, input):
-        self.output = input.reshape(self.shape)
+        self.output = T.reshape(input, (input.shape[0], self.n_out[0], self.n_out[1], self.n_out[2]))
         return self.output
 
     def get_output_train(self, input):

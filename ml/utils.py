@@ -67,7 +67,8 @@ def progbar(now, max_value):
         sys.stdout.flush()
 
 
-def visualize(data, imshape, figshape, filename, nomarlization_flag=True):
+def visualize(data, figshape, filename, nomarlization_flag=True):
+
     if nomarlization_flag:
         data = (data - np.min(data)) / (np.max(data) - np.min(data))
         data *= 255.0
@@ -76,7 +77,7 @@ def visualize(data, imshape, figshape, filename, nomarlization_flag=True):
     for i in xrange(figshape[0]*figshape[1]):
         plt.subplot(figshape[0], figshape[0], pos)
         plt.subplots_adjust(wspace=0, hspace=0)
-        plt.imshow(data[i].reshape(imshape))
+        plt.imshow(data[i])
         plt.gray()
         plt.axis('off')
         pos += 1

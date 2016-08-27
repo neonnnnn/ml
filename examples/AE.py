@@ -16,17 +16,18 @@ imshape = (1, 28, 28)
 opt = SGD(lr=0.01, momentum=0.9)
 loss = MeanSquaredError()
 
-clf = Sequential(28*28, loss=loss, rng=rng, opt=opt, batch_size=20, nb_epoch=200)
+clf = Sequential(28*28, rng)
 
 clf.add(Dense(500))
 clf.add(Activation('relu'))
 clf.add(Decoder(clf.layers[0]))
 clf.add(Activation('sigmoid'))
+clf.compile(opt=opt, loss=loss)
 
 clf.fit(x_train, x_train)
 
-utils.visualize(clf.layers[0].W.get_value().T, (28, 28), (10, 10), "autoencoder_W.png")
+utils.visualize((clf.layers[0].W.get_value().T).reshape(500, 28, 28), (10, 10), "autoencoder_W.png")
 
 output = clf.predict(x_test)
 
-utils.visualize(output, (28, 28), (10, 10),  "autoencoder_output.png")
+utils.visualize(output.reshape(output.shape[0], 28, 28), (10, 10),  "autoencoder_output.png")
