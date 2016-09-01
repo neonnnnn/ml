@@ -15,15 +15,14 @@ imshape = (1, 28, 28)
 
 opt = SGD(lr=0.01, momentum=0.9)
 loss = MeanSquaredError()
-clf = Sequential(28*28, loss=loss, rng=rng, opt=opt, batch_size=20, nb_epoch=200, iprint=True)
+clf = Sequential(28*28, rng)
 
+clf.add(Dropout(0.2))
 clf.add(Dense(500))
 clf.add(Activation('relu'))
-clf.add(Dropout(p=0.5))
-
-clf.add(Decoder(clf.layers[0]))
+clf.add(Decoder(clf.layers[1]))
 clf.add(Activation('sigmoid'))
-
+clf.compile(loss=loss, opt=opt)
 
 clf.fit(x_train, x_train)
 

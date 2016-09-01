@@ -37,7 +37,7 @@ class Sequential(object):
             else:
                 this_layer.set_input_shape(self.layers[len(self.layers)-1].n_out)
 
-            if this_layer.have_params and add_params:
+            if hasattr(this_layer, "params") and add_params:
                 this_layer.set_params()
                 self.params = self.params + this_layer.params
 
@@ -78,7 +78,9 @@ class Sequential(object):
         output = self.get_top_output_train(x)
         cost = self.get_loss_output(y, output)
         updates = self.opt.get_update(cost, self.params)
-
+        for layer in self.layers:
+            if hasattr(layer, "get_updates"):
+                updates += layer.get_updates()
         return theano.function(inputs=[x, y], outputs=cost, updates=updates)
 
     # get pred function
@@ -270,10 +272,12 @@ class Sequential(object):
         if sp.issparse(data_x):
             output = test_model(data_x[0:self.batch_size].toarray())
             batch_start = self.batch_size
+            if self.layers[-1].n_out == 1:
+                output = output.ravel()
             for i in xrange(n_pred_batches - 1):
                 batch_end = batch_start + self.batch_size
                 if output.ndim == 1:
-                    output = np.append(output, test_model(data_x[batch_start:batch_end].toarray()))
+                    output = np.append(output, test_model(data_x[batch_start:batch_end].toarray()).ravel())
                 else:
                     output = np.vstack((output, test_model(data_x[batch_start:batch_end].toarray())))
                 batch_start += self.batch_size
@@ -287,10 +291,12 @@ class Sequential(object):
             output = test_model(data_x[0:self.batch_size])
             batch_start = self.batch_size
             batch_end = self.batch_size
+            if self.layers[-1].n_out == 1:
+                output = output.ravel()
             for i in xrange(n_pred_batches - 1):
                 batch_end += self.batch_size
                 if output.ndim == 1:
-                    output = np.append(output, test_model(data_x[batch_start:batch_end]))
+                    output = np.append(output, test_model(data_x[batch_start:batch_end]).ravel())
                 else:
                     output = np.vstack((output, test_model(data_x[batch_start:batch_end])))
                 batch_start += self.batch_size
@@ -304,7 +310,7 @@ class Sequential(object):
             print ('predict complete.')
         return output
 
-    def score(self, data_x, data_y):
+    def accuracy(self, data_x, data_y):
         pred = self.predict(data_x)
         error = utils.num_of_error(data_y, pred)
         accuracy = 1 - (1.0 * error) / data_y.shape[0]
@@ -312,6 +318,8 @@ class Sequential(object):
 
     def save_weights(self, layer_id, filename):
         if hasattr(self.layers[layer_id], 'W'):
-            np.savetxt(filename, self.layers[layer_id].W.get_value(), delimiter=',')
+            np.save(filename+'_W', self.layers[layer_id].W.get_value())
+        if hasattr(self.layers[layer_id], 'b'):
+            np.save(filename+'_b', self.layers[layer_id].b.get_value())
         else:
-            print ('layer%d doesnt have weights.')
+            print ('layer%d doesnt have weights.' % layer_id)

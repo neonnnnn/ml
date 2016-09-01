@@ -7,7 +7,10 @@ import matplotlib.pyplot as plt
 
 
 def num_of_error(y, p_y_given_x):
-    y_pred = np.argmax(p_y_given_x, axis=1)
+    if p_y_given_x.ndim != 1:
+        y_pred = np.argmax(p_y_given_x, axis=1)
+    else:
+        y_pred = (np.sign(p_y_given_x - 0.5) + 1) // 2
     # check if y has same dimension of y_pred
     if y.ndim != y_pred.ndim:
         raise TypeError(
@@ -68,7 +71,6 @@ def progbar(now, max_value):
 
 
 def visualize(data, figshape, filename, nomarlization_flag=True):
-
     if nomarlization_flag:
         data = (data - np.min(data)) / (np.max(data) - np.min(data))
         data *= 255.0

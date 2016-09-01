@@ -5,19 +5,15 @@ import initializations
 import activations
 from theano.tensor.signal import pool
 from theano.tensor.nnet import conv2d
-from theano.sandbox.cuda.dnn import dnn_conv, dnn_pool, dnn_gradinput, GpuDnnConvDesc, GpuDnnConvGradI
+from theano.sandbox.cuda.dnn import dnn_conv, GpuDnnConvDesc, GpuDnnConvGradI
 from theano.sandbox.cuda.basic_ops import gpu_alloc_empty, gpu_contiguous
 
 
 class Dense(object):
-    def __init__(self, n_out, dropout=None, activation=None, batchnorm=None, W_values=None, b_values=None, init='glorot_uniform'):
-        self.have_params = True
+    def __init__(self, n_out, W_values=None, b_values=None, init='glorot_uniform'):
         self.n_in = None
         self.n_out = n_out
         self.rng = None
-        self.dropout = dropout
-        self.activation = activation
-        self.batchnorm = batchnorm
         self.W = None
         self.W_values = W_values
         self.b = None
@@ -31,17 +27,9 @@ class Dense(object):
 
     def set_rng(self, rng):
         self.rng = rng
-        if self.dropout is not None:
-            self.dropout.rng = rng
 
     def set_input_shape(self, n_in):
         self.n_in = n_in
-        if self.dropout is not None:
-            self.dropout.set_input_shape(n_in)
-        if self.activation is not None:
-            self.activation.set_input_shape(n_in)
-        if self.batchnorm is not None:
-            self.batchnorm.set_input_shape(n_in)
 
     def set_params(self):
         if self.W_values is None:
@@ -72,30 +60,15 @@ class Dense(object):
 
     def get_output(self, input):
         self.output = T.dot(input, self.W) + self.b
-        if self.batchnorm is not None:
-            self.output = self.output.get_output(self.output)
-        if self.activation is not None:
-            self.output = self.activation.get_output(self.output)
-        if self.dropout is not None:
-            self.output = self.dropout.get_output(self.output)
-
         return self.output
         
     def get_output_train(self, input):
         self.output_train = T.dot(input, self.W) + self.b
-        if self.batchnorm is not None:
-            self.output = self.output.get_output_train(self.output)
-        if self.activation is not None:
-            self.output = self.activation.get_output_train(self.output)
-        if self.dropout is not None:
-            self.output = self.dropout.get_output_train(self.output)
-
         return self.output_train
 
 
 class Activation(object):
     def __init__(self, activation_name, param=None):
-        self.have_params = False
         self.n_in = None
         self.n_out = None
         self.afunc = activations.get_activation(activation_name)
@@ -126,45 +99,88 @@ class BatchNormalization(object):
     # This class is incomplete. In above-mentioned paper, mu and sig for inference is estimated by training data, but this code
     # estimated these by inference mini-batch.
 
-    def __init__(self, eps=1e-5):
-        self.have_params = True
+    def __init__(self, eps=1e-5, trainable=True, momentum=0.99, moving=True):
         self.n_in = None
         self.n_out = None
         self.mean = None
         self.var = None
-        self.gamma = None
-        self.beta = None
+        self.mean_inf = None
+        self.var_inf = None
+        self.gamma = 1.0
+        self.beta = 0.0
         self.params = None
         self.eps = eps
         self.output = None
         self.output_train = None
+        self.momentum = momentum
+        self.trainable = trainable
+        self.moving = moving
 
     def set_input_shape(self, n_in):
         self.n_in = n_in
         self.n_out = n_in
 
     def set_params(self):
-        gamma_values = np.ones(self.n_in, dtype=theano.config.floatX)
-        self.gamma = theano.shared(value=gamma_values, borrow=True)
-        beta_values = np.zeros(self.n_out, dtype=theano.config.floatX)
-        self.beta = theano.shared(value=beta_values, borrow=True)
-        self.params = [self.gamma, self.beta]
+        if type(self.n_in) == int:
+            shape = self.n_in
+        else:
+            shape = self.n_in[0]
+        if self.moving:
+            self.mean_inf = theano.shared(value=np.zeros(shape, dtype=theano.config.floatX), borrow=True)
+            self.var_inf = theano.shared(value=np.ones(shape, dtype=theano.config.floatX), borrow=True)
+
+        self.gamma = theano.shared(value=np.ones(shape, dtype=theano.config.floatX), borrow=True)
+        self.beta = theano.shared(value=np.zeros(shape, dtype=theano.config.floatX), borrow=True)
+
+        if self.trainable:
+            self.params = [self.gamma, self.beta]
+        else:
+            self.params = []
+
+        self.momentum = theano.shared(np.asarray(self.momentum, dtype=theano.config.floatX), borrow=True)
 
     def get_output(self, input):
-        self.mean = T.mean(input, axis=0)
-        self.var = T.var(input, axis=0)
-        self.output = self.gamma * (input - self.mean) / T.sqrt((self.var + self.eps)) + self.beta
+        if self.moving:
+            bs = input.shape[0].astype(theano.config.floatX)
+            if input.ndim == 2:
+                self.output = self.gamma * (input - self.mean_inf)
+                self.output /= T.sqrt(bs * self.var_inf / (bs - 1) + self.eps) + self.beta
+            elif input.ndim == 4:
+                self.output = self.gamma.dimshuffle('x', 0, 'x', 'x') * (input - self.mean_inf.dimshuffle('x', 0, 'x', 'x'))
+                self.output /= T.sqrt(bs * self.var_inf / (bs - 1) + self.eps).dimshuffle('x', 0, 'x', 'x') + self.beta.dimshuffle('x', 0, 'x', 'x')
+        else:
+            self.output = self.get_output_train(input)
 
         return self.output
 
     def get_output_train(self, input):
-        self.output_train = self.get_output(input)
+        if input.ndim == 2:
+            mean = T.mean(input, axis=0)
+            var = T.var(input, axis=0)
+            self.output_train = self.gamma * (input - mean) / T.sqrt(var + self.eps) + self.beta
+        elif input.ndim == 4:
+            mean = T.mean(input, axis=(0, 2, 3))
+            var = T.var(input, axis=(0, 2, 3))
+            self.output_train = self.gamma.dimshuffle('x', 0, 'x', 'x') * (input - mean.reshape((1, input.shape[1], 1, 1)))
+            self.output_train /= T.sqrt(var + self.eps).reshape((1, input.shape[1], 1, 1)) + self.beta.dimshuffle('x', 0, 'x', 'x')
+
+        self.mean = mean
+        self.var = var
+
         return self.output_train
+
+    def get_updates(self):
+        if self.moving:
+            updates = [(self.mean_inf, self.momentum * self.mean_inf + (1 - self.momentum) * self.mean),
+                       (self.var_inf, self.momentum * self.var_inf + (1 - self.momentum) * self.var)]
+        else:
+            updates = []
+
+        return updates
 
 
 class Dropout(object):
     def __init__(self, p=0.5):
-        self.have_params = False
         self.n_in = None
         self.n_out = None
         self.rng = None
@@ -191,7 +207,6 @@ class Dropout(object):
 
 class Conv(object):
     def __init__(self, nb_filter, nb_height, nb_width, border_mode='valid', init='he_conv_normal', subsample=(1, 1), W_values=None, b_values=None):
-        self.have_params = True
         self.n_in = None
         self.n_out = None
         self.rng = None
@@ -284,7 +299,6 @@ class Conv(object):
 class Deconv(Conv):
     def __init__(self, nb_filter, nb_height, nb_width, output_shape, border_mode='adapt', init='he_conv_normal', subsample=(1, 1),
                  W_values=None, b_values=None):
-        self.have_params = True
         self.n_in = None
         self.n_out = output_shape
         self.rng = None
@@ -309,14 +323,15 @@ class Deconv(Conv):
 
         if self.W_values is None:
             self.W_values = np.asarray(self.init(self, self.filter_shape), dtype=theano.config.floatX)
+            self.W_values = self.W_values.reshape((self.filter_shape[1], self.filter_shape[0], self.filter_shape[2], self.filter_shape[3]))
         else:  # i.e, add DenseLayer with W
             if not isinstance(self.W, np.ndarray):
                 raise Exception("type(W_values) must be numpy.ndarray.")
-            if self.W_values.shape != self.filter_shape:
+            if self.W_values.shape != (self.filter_shape[1], self.filter_shape[0], self.filter_shape[2], self.filter_shape[3]):
                 raise Exception("W_values.shape must be (nb_filter, n_in[0], nb_height, nb_width).")
             if self.W_values.dtype != theano.config.floatX:
                 raise Exception("W_values.dtype must be theano.config.floatX.")
-        self.W = theano.shared(value=self.W_values.reshape((self.filter_shape[1], self.filter_shape[0], self.filter_shape[2], self.filter_shape[3])), borrow=True)
+        self.W = theano.shared(value=self.W_values, borrow=True)
 
         if self.b_values is None:
             self.b_values = np.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
@@ -422,7 +437,6 @@ class DeconvCUDNN(Deconv):
 
 class Pool(object):
     def __init__(self, poolsize=(2, 2)):
-        self.have_params = False
         self.n_in = None
         self.n_out = None
         self.poolsize = poolsize
@@ -447,8 +461,7 @@ class Pool(object):
 
 
 class Maxout(object):
-    def __init__(self, n_out, size=4, dropout=None, activation=None, batchnorm=None, W_values=None, b_values=None, init='glorot_uniform'):
-        self.have_params = True
+    def __init__(self, n_out, size=4, W_values=None, b_values=None, init='glorot_uniform'):
         self.n_in = None
         self.n_out = n_out
         self.size = size
@@ -494,7 +507,6 @@ class Maxout(object):
 
 class Flatten(object):
     def __init__(self):
-        self.have_params = False
         self.n_in = None
         self.n_out = None
         self.output = None
@@ -515,7 +527,6 @@ class Flatten(object):
 
 class GaussianNoise(object):
     def __init__(self, std=0.1):
-        self.have_params = False
         self.n_in = None
         self.n_out = None
         self.rng = None
@@ -542,13 +553,12 @@ class GaussianNoise(object):
 
 class Decoder(object):
     def __init__(self, encoder, b_values=None):
-        self.have_params = True
         self.n_in = encoder.n_out
         self.n_out = encoder.n_in
         self.W = encoder.W.T
         self.b_values = b_values
         self.b = None
-        self.params = []
+        self.params = None
         self.output = None
         self.output_train = None
 
@@ -581,7 +591,6 @@ class Decoder(object):
 
 class Reshape(object):
     def __init__(self, shape):
-        self.have_params = False
         self.n_in = None
         self.n_out = shape
         self.output = None
