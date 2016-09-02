@@ -19,7 +19,8 @@ class Sequential(object):
         self.opt = None
         self.batch_size = None
         self.nb_epoch = None
-        self.function = None
+        self.train_function = None
+        self.test_function = None
         self.iprint = iprint
 
     # add layer
@@ -79,12 +80,12 @@ class Sequential(object):
         cost = self.get_loss_output(y, output)
         updates = self.opt.get_update(cost, self.params)
         for layer in self.layers:
-            if hasattr(layer, "get_updates"):
-                updates += layer.get_updates()
+            if hasattr(layer, "updates"):
+                updates += layer.updates
         return theano.function(inputs=[x, y], outputs=cost, updates=updates)
 
     # get pred function
-    def get_pred_function(self, x):
+    def get_test_function(self, x):
         output = self.get_top_output(x)
         return theano.function(inputs=[x], outputs=output)
 
@@ -176,7 +177,8 @@ class Sequential(object):
         self.loss = loss
         self.batch_size = batch_size
         self.nb_epoch = nb_epoch
-        self.function = None
+        self.train_function = None
+        self.test_function = None
 
         if self.iprint:
             print ('optimization:'), (self.opt.__class__.__name__)
@@ -185,28 +187,31 @@ class Sequential(object):
             print ('n_layers:'), (len(self.layers))
 
     def fit(self, x_train, y_train, x_valid=None, y_valid=None, valid_mode='loss', shuffle=True):
-        x = T.matrix('x')
-        if y_train[0].ndim == 0:
-            y = T.ivector('y')
-        elif y_train[0].ndim == 1:
-            y = T.matrix('y')
-        else:
-            raise Exception('Label Error:label must be scalar or vector. If not miss, you must rewrite model, objective etc.')
-        n_train_batches = x_train.shape[0] / self.batch_size
-        if self.layers[0].__class__.__name__ == 'Conv':
-            x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
-        else:
-            x = x.reshape((self.batch_size, self.layers[0].n_in))
-
         # get the output of each layers and define train_model
-        if self.function is None:
-            self.function = self.get_train_function(x, y)
-        train_model = self.function
+        if self.train_function is None:
+            x = T.matrix('x')
+            if y_train[0].ndim == 0:
+                y = T.ivector('y')
+            elif y_train[0].ndim == 1:
+                y = T.matrix('y')
+            else:
+                raise Exception('Label Error:label must be scalar or vector. If not miss, you must rewrite model, objective etc.')
+            if self.layers[0].__class__.__name__ == 'Conv':
+                x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
+            else:
+                x = x.reshape((self.batch_size, self.layers[0].n_in))
+            self.train_function = self.get_train_function(x, y)
 
+        train_model = self.train_function
+        n_train_batches = x_train.shape[0] / self.batch_size
         valid_flag = False
+
         # if there are valid data, define valid_model and calc valid_loss
         if x_valid is not None and y_valid is not None:
-            valid_model = self.get_pred_function(x)
+            if self.test_function is None:
+                self.test_function = self.get_test_function(x)
+
+            valid_model = self.test_function(x)
             best_valid_loss = np.inf
             n_valid_batches = x_valid.shape[0] / self.batch_size
             valid_flag = True
@@ -259,12 +264,15 @@ class Sequential(object):
             print (' ran for %.2fm' % ((end_time - start_time) / 60.))
 
     def predict(self, data_x):
-        x = T.matrix('x')
-        if self.layers[0].__class__.__name__ == 'Conv':
-            x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
-        else:
-            x = x.reshape((self.batch_size, self.layers[0].n_in))
-        test_model = self.get_pred_function(x)
+        if self.test_function is None:
+            x = T.matrix('x')
+            if self.layers[0].__class__.__name__ == 'Conv':
+                x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
+            else:
+                x = x.reshape((self.batch_size, self.layers[0].n_in))
+            self.test_function = self.get_test_function(x)
+
+        test_model = self.test_function
         if self.iprint:
             print ('predicting...')
         n_pred_batches = data_x.shape[0] / self.batch_size

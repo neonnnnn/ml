@@ -4,6 +4,7 @@ import numpy as np
 import sklearn
 import sys
 import matplotlib.pyplot as plt
+from scipy.misc import imsave
 
 
 def num_of_error(y, p_y_given_x):
@@ -84,6 +85,19 @@ def visualize(data, figshape, filename, nomarlization_flag=True):
         plt.axis('off')
         pos += 1
     plt.savefig(filename)
+    return plt
+
+
+def saveimg(data, figshape, filename):
+    h, w = data[0].shape[:2]
+    img = np.zeros((h*figshape[0], w*figshape[1]))
+    for n, x in enumerate(data):
+        j = n/figshape[0]
+        i = n%figshape[1]
+        img[j*h:j*h+h, i*w:i*w+w] = x
+    if filename is not None:
+        imsave(filename, img)
+    return img
 
 
 
