@@ -7,7 +7,7 @@ def uniform(layers, shape, scale=0.05):
     return layers.rng.uniform(low=-scale, high=scale, size=shape)
 
 
-def normal(layers, shape, mu=0., sigma=0.05):
+def normal(layers, shape, mu=0., sigma=0.02):
     return layers.rng.normal(mu, sigma, shape)
 
 

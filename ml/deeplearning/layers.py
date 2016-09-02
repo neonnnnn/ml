@@ -102,8 +102,6 @@ class BatchNormalization(object):
     def __init__(self, eps=1e-5, trainable=True, momentum=0.99, moving=True):
         self.n_in = None
         self.n_out = None
-        self.mean = None
-        self.var = None
         self.mean_inf = None
         self.var_inf = None
         self.gamma = 1.0
@@ -115,6 +113,7 @@ class BatchNormalization(object):
         self.momentum = momentum
         self.trainable = trainable
         self.moving = moving
+        self.updates = None
 
     def set_input_shape(self, n_in):
         self.n_in = n_in
@@ -141,13 +140,12 @@ class BatchNormalization(object):
 
     def get_output(self, input):
         if self.moving:
-            bs = input.shape[0].astype(theano.config.floatX)
             if input.ndim == 2:
                 self.output = self.gamma * (input - self.mean_inf)
-                self.output /= T.sqrt(bs * self.var_inf / (bs - 1) + self.eps) + self.beta
+                self.output /= T.sqrt(self.var_inf + self.eps) + self.beta
             elif input.ndim == 4:
                 self.output = self.gamma.dimshuffle('x', 0, 'x', 'x') * (input - self.mean_inf.dimshuffle('x', 0, 'x', 'x'))
-                self.output /= T.sqrt(bs * self.var_inf / (bs - 1) + self.eps).dimshuffle('x', 0, 'x', 'x') + self.beta.dimshuffle('x', 0, 'x', 'x')
+                self.output /= T.sqrt(self.var_inf + self.eps).dimshuffle('x', 0, 'x', 'x') + self.beta.dimshuffle('x', 0, 'x', 'x')
         else:
             self.output = self.get_output_train(input)
 
@@ -155,28 +153,24 @@ class BatchNormalization(object):
 
     def get_output_train(self, input):
         if input.ndim == 2:
-            mean = T.mean(input, axis=0)
-            var = T.var(input, axis=0)
+            mean = T.mean(input, axis=(0))
+            var = T.var(input, axis=(0))
             self.output_train = self.gamma * (input - mean) / T.sqrt(var + self.eps) + self.beta
+            self.output_train = T.nnet.batch_normalization(input, self.gamma, self.beta, mean, T.sqrt(var+self.eps))
         elif input.ndim == 4:
             mean = T.mean(input, axis=(0, 2, 3))
             var = T.var(input, axis=(0, 2, 3))
             self.output_train = self.gamma.dimshuffle('x', 0, 'x', 'x') * (input - mean.reshape((1, input.shape[1], 1, 1)))
             self.output_train /= T.sqrt(var + self.eps).reshape((1, input.shape[1], 1, 1)) + self.beta.dimshuffle('x', 0, 'x', 'x')
 
-        self.mean = mean
-        self.var = var
+        if self.moving:
+            bs = input.shape[0].astype(theano.config.floatX)
+            self.updates = [(self.mean_inf, self.momentum * self.mean_inf + (1 - self.momentum) * mean),
+                            (self.var_inf, self.momentum * self.var_inf + (1 - self.momentum) * var * bs / (bs - 1.))]
+        else:
+            self.updates = []
 
         return self.output_train
-
-    def get_updates(self):
-        if self.moving:
-            updates = [(self.mean_inf, self.momentum * self.mean_inf + (1 - self.momentum) * self.mean),
-                       (self.var_inf, self.momentum * self.var_inf + (1 - self.momentum) * self.var)]
-        else:
-            updates = []
-
-        return updates
 
 
 class Dropout(object):
