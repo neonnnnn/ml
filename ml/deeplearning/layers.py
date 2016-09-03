@@ -3,6 +3,7 @@ import theano
 import theano.tensor as T
 import initializations
 import activations
+import inspect
 from theano.tensor.signal import pool
 from theano.tensor.nnet import conv2d
 from theano.sandbox.cuda.dnn import dnn_conv, GpuDnnConvDesc, GpuDnnConvGradI
@@ -38,22 +39,22 @@ class Dense(object):
             self.W_values = np.asarray(self.init(self, (self.n_in, self.n_out)), dtype=theano.config.floatX)
         else:   # i.e, add DenseLayer with W
             if not isinstance(self.W, np.ndarray):
-                raise Exception("type(W_values) must be numpy.ndarray.")
+                raise TypeError("type(W_values) must be numpy.ndarray.")
             if self.W_values.shape != (self.n_in, self.n_out):
-                raise Exception("W_values.shape must be (n_in, n_out).")
+                raise ValueError("W_values.shape must be (n_in, n_out).")
             if self.W_values.dtype != theano.config.floatX:
-                raise Exception("W_values.dtype must be theano.config.floatX.")
+                raise ValueError("W_values.dtype must be theano.config.floatX.")
         self.W = theano.shared(value=self.W_values, name='W', borrow=True)
 
         if self.b_values is None:
             self.b_values = np.zeros((self.n_out,), dtype=theano.config.floatX)
         else:
             if not isinstance(self.b_values, np.ndarray):
-                raise Exception("type(b_values) must be numpy.ndarray.")
+                raise TypeError("type(b_values) must be numpy.ndarray.")
             if self.b.shape != (self.n_out,):
-                raise Exception("b_values.shape must be (n_out,)")
+                raise TypeError("b_values.shape must be (n_out,)")
             if self.b_values.dtype != theano.config.flaotX:
-                raise Exception("b_values.dtype must be theano.config.flaotX.")
+                raise ValueError("b_values.dtype must be theano.config.flaotX.")
         self.b = theano.shared(value=self.b_values, name='b', borrow=True)
 
         self.params = [self.W, self.b]
@@ -68,11 +69,11 @@ class Dense(object):
 
 
 class Activation(object):
-    def __init__(self, activation_name, param=None):
+    def __init__(self, activation_name, *args):
         self.n_in = None
         self.n_out = None
         self.afunc = activations.get_activation(activation_name)
-        self.param = param
+        self.act_param = args
         self.output = None
         self.output_train = None
 
@@ -81,10 +82,10 @@ class Activation(object):
         self.n_out = n_in
 
     def get_output(self, input):
-        if self.param is None:
-            self.output = self.afunc(input)
+        if len(inspect.getargspec(self.afunc)[0]) > 1 and len(self.act_param) != 0:
+            self.output = self.afunc(input, self.act_param)
         else:
-            self.output = self.afunc(input, self.param)
+            self.output = self.afunc(input)
         return self.output
 
     def get_output_train(self, input):
@@ -93,13 +94,7 @@ class Activation(object):
 
 
 class BatchNormalization(object):
-    # Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift
-    # Sergey Ioffe, Christian Szegedy
-    # http://arxiv.org/abs/1502.03167
-    # This class is incomplete. In above-mentioned paper, mu and sig for inference is estimated by training data, but this code
-    # estimated these by inference mini-batch.
-
-    def __init__(self, eps=1e-5, trainable=True, momentum=0.99, moving=True):
+    def __init__(self, eps=1e-5, trainable=True, momentum=0.9, moving=True):
         self.n_in = None
         self.n_out = None
         self.mean_inf = None
@@ -126,7 +121,7 @@ class BatchNormalization(object):
             shape = self.n_in[0]
         if self.moving:
             self.mean_inf = theano.shared(value=np.zeros(shape, dtype=theano.config.floatX), borrow=True)
-            self.var_inf = theano.shared(value=np.ones(shape, dtype=theano.config.floatX), borrow=True)
+            self.var_inf = theano.shared(value=np.zeros(shape, dtype=theano.config.floatX), borrow=True)
 
         self.gamma = theano.shared(value=np.ones(shape, dtype=theano.config.floatX), borrow=True)
         self.beta = theano.shared(value=np.zeros(shape, dtype=theano.config.floatX), borrow=True)
@@ -153,8 +148,8 @@ class BatchNormalization(object):
 
     def get_output_train(self, input):
         if input.ndim == 2:
-            mean = T.mean(input, axis=(0))
-            var = T.var(input, axis=(0))
+            mean = T.mean(input, axis=0)
+            var = T.var(input, axis=0)
             self.output_train = self.gamma * (input - mean) / T.sqrt(var + self.eps) + self.beta
             self.output_train = T.nnet.batch_normalization(input, self.gamma, self.beta, mean, T.sqrt(var+self.eps))
         elif input.ndim == 4:
@@ -254,11 +249,11 @@ class Conv(object):
             self.W_values = np.asarray(self.init(self, self.filter_shape), dtype=theano.config.floatX)
         else:  # i.e, add DenseLayer with W
             if not isinstance(self.W, np.ndarray):
-                raise Exception("type(W_values) must be numpy.ndarray.")
+                raise TypeError("type(W_values) must be numpy.ndarray.")
             if self.W_values.shape != self.filter_shape:
-                raise Exception("W_values.shape must be (nb_filter, n_in[0], nb_height, nb_width).")
+                raise ValueError("W_values.shape must be (nb_filter, n_in[0], nb_height, nb_width).")
             if self.W_values.dtype != theano.config.floatX:
-                raise Exception("W_values.dtype must be theano.config.floatX.")
+                raise ValueError("W_values.dtype must be theano.config.floatX.")
         self.W = theano.shared(value=self.W_values, borrow=True)
 
         if self.b_values is None:
@@ -320,22 +315,22 @@ class Deconv(Conv):
             self.W_values = self.W_values.reshape((self.filter_shape[1], self.filter_shape[0], self.filter_shape[2], self.filter_shape[3]))
         else:  # i.e, add DenseLayer with W
             if not isinstance(self.W, np.ndarray):
-                raise Exception("type(W_values) must be numpy.ndarray.")
+                raise TypeError("type(W_values) must be numpy.ndarray.")
             if self.W_values.shape != (self.filter_shape[1], self.filter_shape[0], self.filter_shape[2], self.filter_shape[3]):
-                raise Exception("W_values.shape must be (nb_filter, n_in[0], nb_height, nb_width).")
+                raise ValueError("W_values.shape must be (nb_filter, n_in[0], nb_height, nb_width).")
             if self.W_values.dtype != theano.config.floatX:
-                raise Exception("W_values.dtype must be theano.config.floatX.")
+                raise ValueError("W_values.dtype must be theano.config.floatX.")
         self.W = theano.shared(value=self.W_values, borrow=True)
 
         if self.b_values is None:
             self.b_values = np.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
         else:
             if not isinstance(self.b_values, np.ndarray):
-                raise Exception("Layer-typeError: type(b_values) must be numpy.ndarray.")
+                raise TypeError("Layer-typeError: type(b_values) must be numpy.ndarray.")
             if self.b.shape != (self.nb_filter_shape[0],):
-                raise Exception("Layer-shapeError. b_values.shape must be (n_out,)")
+                raise ValueError("Layer-shapeError. b_values.shape must be (n_out,)")
             if self.b_values.dtype != theano.config.flaotX:
-                raise Exception("Layer-dtypeError. b_values.dtype must be theano.config.flaotX.")
+                raise ValueError("Layer-dtypeError. b_values.dtype must be theano.config.flaotX.")
         self.b = theano.shared(value=self.b_values, borrow=True)
 
         self.params = [self.W, self.b]
@@ -393,7 +388,7 @@ class Deconv(Conv):
             filter_flip=True
         )
         deconv_out = op(self.W, input, self.n_out[1:])
-        self.output = deconv_out + T.reshape(self.b, (1, self.filter_shape[0], 1, 1))
+        self.output = deconv_out + self.b.dimshuffle('x', 0, 'x', 'x')
         return self.output
 
     def get_output_train(self, input):
@@ -409,7 +404,7 @@ class ConvCUDNN(Conv):
             border_mode=self.border_mode,
             subsample=self.subsample
         )
-        self.output = deconv_out + T.reshape(self.b, (1, self.filter_shape[0], 1, 1))
+        self.output = deconv_out + self.b.dimshuffle('x', 0, 'x', 'x')
         return self.output
 
 
@@ -421,7 +416,7 @@ class DeconvCUDNN(Deconv):
                               conv_mode="conv")(
             gpu_alloc_empty(img.shape[0], kerns.shape[1], img.shape[2] * self.subsample[0], img.shape[3] * self.subsample[1]).shape, kerns.shape)
         out = gpu_alloc_empty(img.shape[0], kerns.shape[1], img.shape[2] * self.subsample[0], img.shape[3] * self.subsample[1])
-        self.output = GpuDnnConvGradI()(kerns, img, out, desc) + T.reshape(self.b, (1, self.filter_shape[0], 1, 1))
+        self.output = GpuDnnConvGradI()(kerns, img, out, desc) + self.b.dimshuffle('x', 0, 'x', 'x')
         return self.output
 
     def get_output_train(self, input):
@@ -558,18 +553,18 @@ class Decoder(object):
 
     def set_input_shape(self, n_in):
         if n_in != self.n_in:
-            raise Exception("Definition of Decoder is wrong.")
+            raise ValueError("Definition of Decoder is wrong.")
 
     def set_params(self):
         if self.b_values is None:
             self.b_values = np.zeros((self.n_out,), dtype=theano.config.floatX)
         else:
             if not isinstance(self.b_values, np.ndarray):
-                raise Exception("type(b_values) must be numpy.ndarray.")
+                raise TypeError("type(b_values) must be numpy.ndarray.")
             if self.b.shape != (self.n_out,):
-                raise Exception("b_values.shape must be (n_out,)")
+                raise ValueError("b_values.shape must be (n_out,)")
             if self.b_values.dtype != theano.config.flaotX:
-                raise Exception("b_values.dtype must be theano.config.flaotX.")
+                raise ValueError("b_values.dtype must be theano.config.flaotX.")
         self.b = theano.shared(value=self.b_values, name='b', borrow=True)
 
         self.params = [self.b]

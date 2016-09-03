@@ -59,16 +59,17 @@ def make_validation(x, y, validation_rate):
     return x, y, valid_x, valid_y
 
 
-def progbar(now, max_value):
+def progbar(now, max_value, time=None):
     width = int(30 * now/max_value)
     prog = "[%s]" % ("=" * width + ">" + " " * (30 - width))
-    if now == max:
-        sys.stdout.write(prog + str(now) + "/" + str(max_value))
+    if now != max and time is not None:
+        eta = time * (max_value - now)
+        sys.stdout.write("\r{0}{1}/{2}, eta:{3:.2f}s".format(prog, now, max_value, eta))
+        sys.stdout.flush()
+    else:
+        sys.stdout.write("\r{0}{1}/{2}".format(prog, now, max_value))
         sys.stdout.flush()
         sys.std.write("\n")
-    else:
-        sys.stdout.write("\r" + prog + str(now) + "/" + str(max_value))
-        sys.stdout.flush()
 
 
 def visualize(data, figshape, filename, nomarlization_flag=True):
@@ -100,4 +101,13 @@ def saveimg(data, figshape, filename):
     return img
 
 
-
+def color_saveimg(data, (nh, nw), save_path=None):
+    h, w = data[0].shape[1:]
+    img = np.zeros((h*nh, w*nw, 3))
+    for n, x in enumerate(data):
+        j = n/nw
+        i = n%nw
+        img[j*h:j*h+h, i*w:i*w+w, :] = x.transpose(1, 2, 0)
+    if save_path is not None:
+        imsave(save_path, img)
+    return img
