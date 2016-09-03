@@ -10,7 +10,7 @@ import objectives
 
 
 class Sequential(object):
-    def __init__(self, n_in,  rng=np.random.RandomState(0), iprint=True):
+    def __init__(self, n_in, rng=np.random.RandomState(0), iprint=True):
         self.n_in = n_in
         self.rng = rng
         self.params = []
@@ -75,7 +75,16 @@ class Sequential(object):
         return loss
 
     # get train function
-    def get_train_function(self, x, y):
+    def get_train_function(self, y_ndim):
+        x = T.matrix('x')
+        if self.layers[0].__class__.__name__ == 'Conv':
+            x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
+        else:
+            x = x.reshape((self.batch_size, self.layers[0].n_in))
+        if y_ndim == 0:
+            y = T.ivector('y')
+        elif y_ndim == 1:
+            y = T.matrix('y')
         output = self.get_top_output_train(x)
         cost = self.get_loss_output(y, output)
         updates = self.opt.get_update(cost, self.params)
@@ -85,38 +94,50 @@ class Sequential(object):
         return theano.function(inputs=[x, y], outputs=cost, updates=updates)
 
     # get pred function
-    def get_test_function(self, x):
+    def get_test_function(self):
+        x = T.matrix('x')
+        if self.layers[0].__class__.__name__ == 'Conv':
+            x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
+        else:
+            x = x.reshape((self.batch_size, self.layers[0].n_in))
         output = self.get_top_output(x)
         return theano.function(inputs=[x], outputs=output)
 
-    def batch_train(self, x_train, y_train, train_model, n_batches):
+    def _batch_train(self, x_train, y_train, train_model, n_batches):
         train_loss = []
         batch_start = 0
+        batch_end = 0
         # if x is sparse matrix
         if sp.issparse(x_train):
             for i in xrange(n_batches):
+                s = timeit.default_timer()
                 batch_end = batch_start + self.batch_size
                 train_loss += [train_model(x_train[batch_start:batch_end].toarray(), y_train[batch_start:batch_end])]
                 batch_start += self.batch_size
                 if self.iprint:
-                    utils.progbar(i + 1, n_batches)
+                    e = timeit.default_timer()
+                    utils.progbar(i + 1, n_batches, e - s)
                     sys.stdout.write(" batches")
             if batch_end != x_train.shape[0]:
                 train_loss += [train_model(x_train[-self.batch_size:].toarray(), y_train[-self.batch_size:])]
         else:
             for i in xrange(n_batches):
+                s = timeit.default_timer()
                 batch_end = batch_start + self.batch_size
                 train_loss += [train_model(x_train[batch_start:batch_end], y_train[batch_start:batch_end])]
                 batch_start += self.batch_size
                 if self.iprint:
-                    utils.progbar(i+1, n_batches)
+                    e = timeit.default_timer()
+                    utils.progbar(i+1, n_batches, e - s)
                     sys.stdout.write(" batches")
             if batch_end != x_train.shape[0]:
                 train_loss += [train_model(x_train[-self.batch_size:], y_train[-self.batch_size:])]
         if self.iprint:
             sys.stdout.write(', train_loss:%.5f' % np.mean(train_loss))
 
-    def calc_error_rate(self, x, y, model, n_batches):
+        return train_loss
+
+    def _calc_error_rate(self, x, y, model, n_batches):
         error = 0.0
         batch_start = 0
         # if x is sparse matrix
@@ -143,7 +164,7 @@ class Sequential(object):
 
         return error_rate
 
-    def calc_loss(self, x, y, model, n_batches):
+    def _calc_loss(self, x, y, model, n_batches):
         loss = []
         batch_start = 0
         # if x is sparse matrix
@@ -181,26 +202,23 @@ class Sequential(object):
         self.test_function = None
 
         if self.iprint:
-            print ('optimization:'), (self.opt.__class__.__name__)
-            print ('batch_size:'), (self.batch_size)
-            print ('nb_epoch:'), (self.nb_epoch)
-            print ('n_layers:'), (len(self.layers))
+            print 'optimization:{0}'.format(self.opt.__class__.__name__)
+            print 'batch_size:{0}'.format(self.batch_size)
+            print 'nb_epoch:{0}'.format(self.nb_epoch)
+            print 'n_layers:{0}'.format(len(self.layers))
+            if isinstance(self.loss, list):
+                str_loss = ''
+                for l in loss:
+                    str_loss += str(l.weigth) + l.__class__.__name__ + ' + '
+                print 'loss:{0}'.format(str_loss[:-2])
+            else:
+                print 'loss:{0}'.format(loss.__class__.__name__)
 
     def fit(self, x_train, y_train, x_valid=None, y_valid=None, valid_mode='loss', shuffle=True):
         # get the output of each layers and define train_model
         if self.train_function is None:
-            x = T.matrix('x')
-            if y_train[0].ndim == 0:
-                y = T.ivector('y')
-            elif y_train[0].ndim == 1:
-                y = T.matrix('y')
-            else:
-                raise Exception('Label Error:label must be scalar or vector. If not miss, you must rewrite model, objective etc.')
-            if self.layers[0].__class__.__name__ == 'Conv':
-                x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
-            else:
-                x = x.reshape((self.batch_size, self.layers[0].n_in))
-            self.train_function = self.get_train_function(x, y)
+            y_ndim = y_train[0].ndim
+            self.train_function = self.get_train_function(y_ndim)
 
         train_model = self.train_function
         n_train_batches = x_train.shape[0] / self.batch_size
@@ -209,9 +227,8 @@ class Sequential(object):
         # if there are valid data, define valid_model and calc valid_loss
         if x_valid is not None and y_valid is not None:
             if self.test_function is None:
-                self.test_function = self.get_test_function(x)
-
-            valid_model = self.test_function(x)
+                self.test_function = self.get_test_function()
+            valid_model = self.test_function
             best_valid_loss = np.inf
             n_valid_batches = x_valid.shape[0] / self.batch_size
             valid_flag = True
@@ -223,25 +240,26 @@ class Sequential(object):
         if self.iprint:
             print ('training ...')
         i = 0
+        train_loss = []
         while i < self.nb_epoch:
             i += 1
             if shuffle:
                 x_train, y_train = utils.shuffle(x_train, y_train)
             if self.iprint:
-                print ('epoch:'), (i)
+                print 'epoch:', i
             start_batch_time = timeit.default_timer()
-            self.batch_train(x_train, y_train, train_model, n_train_batches)
+            train_loss += [np.mean(self._batch_train(x_train, y_train, train_model, n_train_batches))]
 
             # if there are valid data, calc valid_error
             if valid_flag:
                 if valid_mode == "error_rate":
                     this_valid_loss = self.calc_error_rate(x_valid, y_valid, valid_model, n_valid_batches)
                     if self.iprint:
-                        sys.stdout.write(', valid_error_rate:%.4f%%' % this_valid_loss)
+                        sys.stdout.write(', valid_error_rate:{0:.4f}%%'.format(this_valid_loss))
                 elif valid_mode == "loss":
                     this_valid_loss = self.calc_loss(x_valid, y_valid, valid_model, n_valid_batches)
                     if self.iprint:
-                        sys.stdout.write(', valid_loss:%.4f' % this_valid_loss)
+                        sys.stdout.write(', valid_loss:{0:.4f}'.format(this_valid_loss))
                 else:
                     raise Exception("valid_mode error: valid_mode must be error_rate or loss.")
 
@@ -251,71 +269,77 @@ class Sequential(object):
 
             end_batch_time = timeit.default_timer()
             if self.iprint:
-                sys.stdout.write(', %.2fs' % (end_batch_time - start_batch_time))
+                sys.stdout.write(', {0:.2f}s'.format(end_batch_time - start_batch_time))
                 sys.stdout.write("\n")
 
         # training end
         end_time = timeit.default_timer()
         if self.iprint:
             if valid_flag:
-                print('Training complete. Best validation score of %f %% ' % best_valid_loss)
+                print('Training complete. Best validation score of {0} %% '.format(best_valid_loss))
             else:
                 print('Training complete.')
-            print (' ran for %.2fm' % ((end_time - start_time) / 60.))
+            print (' ran for {0:.2f}m'.format((end_time - start_time) / 60.))
+
+        return train_loss
+
+    def batch_fit(self, x_train, y_train):
+        # get the output of each layers and define train_model
+        if self.train_function is None:
+            y_ndim = y_train[0].ndim
+            self.train_function = self.get_train_function(y_ndim)
+
+        train_model = self.train_function
+        # if x is sparse matrix
+        if sp.issparse(x_train):
+            train_loss = train_model(x_train.toarray(), y_train)
+        else:
+            train_loss = train_model(x_train, y_train)
+
+        return train_loss
 
     def predict(self, data_x):
         if self.test_function is None:
-            x = T.matrix('x')
-            if self.layers[0].__class__.__name__ == 'Conv':
-                x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
-            else:
-                x = x.reshape((self.batch_size, self.layers[0].n_in))
-            self.test_function = self.get_test_function(x)
+            self.test_function = self.get_test_function()
 
         test_model = self.test_function
-        if self.iprint:
-            print ('predicting...')
-        n_pred_batches = data_x.shape[0] / self.batch_size
 
-        if sp.issparse(data_x):
-            output = test_model(data_x[0:self.batch_size].toarray())
-            batch_start = self.batch_size
-            if self.layers[-1].n_out == 1:
-                output = output.ravel()
-            for i in xrange(n_pred_batches - 1):
-                batch_end = batch_start + self.batch_size
-                if output.ndim == 1:
-                    output = np.append(output, test_model(data_x[batch_start:batch_end].toarray()).ravel())
-                else:
-                    output = np.vstack((output, test_model(data_x[batch_start:batch_end].toarray())))
-                batch_start += self.batch_size
-            if batch_end != data_x.shape[0]:
-                pred = test_model(data_x[-self.batch_size:].toarray())
-                if output.ndim == 1:
-                    output = np.append(output, pred[-x.shape[0] + batch_end:])
-                else:
-                    output = np.vstack((output, pred[-x.shape[0] + batch_end:]))
+        n_pred_batches = data_x.shape[0] / self.batch_size
+        if isinstance(self.layers[-1].n_out, int):
+            output = np.zeros((data_x.shape[0], self.layers[-1].n_out), dtype=theano.config.floatX)
         else:
-            output = test_model(data_x[0:self.batch_size])
-            batch_start = self.batch_size
-            batch_end = self.batch_size
-            if self.layers[-1].n_out == 1:
-                output = output.ravel()
-            for i in xrange(n_pred_batches - 1):
-                batch_end += self.batch_size
-                if output.ndim == 1:
-                    output = np.append(output, test_model(data_x[batch_start:batch_end]).ravel())
-                else:
-                    output = np.vstack((output, test_model(data_x[batch_start:batch_end])))
+            output_shape = [data_x.shape[0]] + list(self.layers[-1].n_out)
+            output = np.zeros(output_shape, dtype=theano.config.floatX)
+
+        batch_start = 0
+        batch_end = 0
+        # if data_x is sparse matrix
+        if sp.issparse(data_x):
+            for i in xrange(n_pred_batches):
+                batch_end = batch_start + self.batch_size
+                output[batch_start:batch_end] = test_model(data_x[batch_start:batch_end].toarray())
                 batch_start += self.batch_size
             if batch_end != data_x.shape[0]:
-                pred = test_model(data_x[-self.batch_size:])
-                if output.ndim == 1:
-                    output = np.append(output, pred[-x.shape[0] + batch_end:])
-                else:
-                    output = np.vstack((output, pred[-x.shape[0] + batch_end:]))
-        if self.iprint:
-            print ('predict complete.')
+                dummy_shape = data_x.shape
+                dummy_shape[0] = data_x.shape[0] - batch_end
+                dummy = np.zeros(dummy_shape, dtype=theano.config.floatX)
+                pred = test_model(np.vstack(dummy, data_x[batch_end:].toarray()))
+                output[batch_end:] = pred[-data_x.shape[0] + batch_end:]
+        else:
+            for i in xrange(n_pred_batches):
+                batch_end += self.batch_size
+                output[batch_start:batch_end] = test_model(data_x[batch_start:batch_end])
+                batch_start += self.batch_size
+            if batch_end != data_x.shape[0]:
+                dummy_shape = data_x.shape
+                dummy_shape[0] = data_x.shape[0] - batch_end
+                dummy = np.zeros(dummy_shape, dtype=theano.config.floatX)
+                pred = test_model(np.vstack(dummy, data_x[batch_end:]))
+                output[batch_end:] = pred[-data_x.shape[0] + batch_end:]
+
+        if self.layers[-1].n_out == 1:
+            output = output.ravel()
+
         return output
 
     def accuracy(self, data_x, data_y):
@@ -330,4 +354,4 @@ class Sequential(object):
         if hasattr(self.layers[layer_id], 'b'):
             np.save(filename+'_b', self.layers[layer_id].b.get_value())
         else:
-            print ('layer%d doesnt have weights.' % layer_id)
+            print ('layer{0} doesnt have weights.'.format(layer_id))
