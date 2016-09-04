@@ -1,8 +1,8 @@
 import numpy as np
 import load_mnist
-from ml.deeplearning.layers import Dense, Activation, Dropout, Maxout, Conv, Deconv, BatchNormalization, Flatten, Reshape,  DeconvCUDNN
-from ml.deeplearning.optimizers import Adam, SGD
-from ml.deeplearning.objectives import MulticlassLogLoss, CrossEntropy, L2Regularization
+from ml.deeplearning.layers import Dense, Activation, Conv, BatchNormalization, Flatten, Reshape, DeconvCUDNN
+from ml.deeplearning.optimizers import Adam
+from ml.deeplearning.objectives import CrossEntropy, L2Regularization
 from ml.deeplearning.models import Sequential
 from ml import utils
 import sys
@@ -53,16 +53,16 @@ if __name__ == '__main__':
 
     # make discriminator
     rng1 = np.random.RandomState(1)
-    d = discriminator(rng1, batch_size)
+    discriminator = discriminator(rng1, batch_size)
 
     # make generator
     rng2 = np.random.RandomState(1234)
-    g = generator(rng2, batch_size)
+    generator = generator(rng2, batch_size)
 
     # concat models for training generator
     concat_g = Sequential(100, rng2, iprint=False)
-    concat_g.add(g)
-    concat_g.add(d, add_params=False)
+    concat_g.add(generator)
+    concat_g.add(discriminator, add_params=False)
     concat_g.compile(batch_size=batch_size, nb_epoch=1, loss=[CrossEntropy(), L2Regularization(weight=1e-5)], opt=Adam(lr=0.0002, beta_1=0.5))
 
     # make label
@@ -70,14 +70,14 @@ if __name__ == '__main__':
     zeros = np.zeros(batch_size).astype(np.int8)
 
     # generate first imitation
-    for i in range(len(g.layers)):
-        if hasattr(g.layers[i], "moving"):
-            g.layers[i].moving = False
+    for i in range(len(generator.layers)):
+        if hasattr(generator.layers[i], "moving"):
+            generator.layers[i].moving = False
     z = np.random.uniform(low=-1, high=1, size=batch_size * 100).reshape(batch_size, 100).astype(np.float32)
-    imitation = g.predict(z)
-    for i in range(len(g.layers)):
-        if hasattr(g.layers[i], "moving"):
-            g.layers[i].moving = True
+    imitation = generator.predict(z)
+    for i in range(len(generator.layers)):
+        if hasattr(generator.layers[i], "moving"):
+            generator.layers[i].moving = True
 
     z_plot = np.random.uniform(low=-1, high=1, size=100*100).reshape(100, 100).astype(np.float32)
 
@@ -90,23 +90,25 @@ if __name__ == '__main__':
         for j in xrange(50000/batch_size):
             # train discriminator
             s1 = timeit.default_timer()
-            d.batch_fit(np.vstack((X_train[start:start + batch_size], imitation)), np.append(ones, zeros))
+            discriminator.fit_onebatch(X_train[start:start + batch_size], ones)
+            discriminator.fit_onebatch(imitation, zeros)
+
             # train generator
             if j % k == 0:
                 z = np.random.uniform(low=-1, high=1, size=batch_size * 100).reshape(batch_size, 100).astype(np.float32)
-                concat_g.fit(z, ones)
+                concat_g.batch_fit(z, ones)
             # generate imitation
             z = np.random.uniform(low=-1, high=1, size=batch_size * 100).reshape(batch_size, 100).astype(np.float32)
-            imitation = g.predict(z)
+            imitation = generator.predict(z)
             start += batch_size
             e1 = timeit.default_timer()
             utils.progbar(j + 1, 50000 / batch_size, e1 - s1)
 
         # validation
         z = np.random.uniform(low=-1, high=1, size=10000*100).reshape(10000, 100).astype(np.float32)
-        imitation_valid = g.predict(z)
-        sys.stdout.write(' Real ACC:%.2f' % d.accuracy(X_valid, np.ones(10000).astype(np.int8)))
-        sys.stdout.write(' Gene ACC:%.2f' % d.accuracy(imitation_valid, np.zeros(10000).astype(np.int8)))
+        imitation_valid = generator.predict(z)
+        sys.stdout.write(' Real ACC:%.2f' % discriminator.accuracy(X_valid, np.ones(10000).astype(np.int8)))
+        sys.stdout.write(' Gene ACC:%.2f' % discriminator.accuracy(imitation_valid, np.zeros(10000).astype(np.int8)))
 
         e = timeit.default_timer()
         sys.stdout.write(', %.2fs' % (e - s))
@@ -114,8 +116,8 @@ if __name__ == '__main__':
 
         if (i+1) % 10 == 0:
             print "generate imitation..."
-            generation = 255.0 * (g.predict(z_plot).reshape(100, 28, 28) + 1.) / 2.
-            utils.saveimg(generation, (10, 10), "imgs/GAN_MNIST_epoch" + str(i+1) + ".png")
+            generation = 255.0 * (generator.predict(z_plot).reshape(100, 28, 28) + 1.) / 2.
+            utils.saveimg(generation, (10, 10), "imgs/DCGAN/DCGAN_MNIST_epoch" + str(i+1) + ".png")
 
         if (i+1) % 50 == 0:
             z1 = np.random.uniform(low=-1, high=1, size=100)
@@ -123,8 +125,6 @@ if __name__ == '__main__':
             z = np.zeros((100, 100))
             for j in xrange(100):
                 z[j] = z1 + (-z1 + z2) * j / 99.
-            generation = 255.0 * (g.predict(z.astype(np.float32)) + 1.) / 2.
-            utils.color_saveimg(generation, (20, 20), "imgs/DCGAN_MNIST_Analogy_epoch" + str(i + 1) + ".png")
+            generation = 255.0 * (generator.predict(z.astype(np.float32)) + 1.) / 2.
+            utils.color_saveimg(generation, (10, 10), "imgs/DCGAN/DCGAN_MNIST_Analogy_epoch" + str(i + 1) + ".png")
 
-    for i in range(len(g.layers)):
-        g.save_weights(i, "Weight_"+str(i))

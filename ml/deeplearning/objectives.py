@@ -3,48 +3,63 @@ import numpy as np
 
 
 class CrossEntropy(object):
-    def __init__(self, weight=1., reg=None):
+    def __init__(self, weight=1., mode=0):
         self.weight = weight
-        self.reg = reg
+        self.mode = mode
+        if not (self.mode == 0 or self.mode == 1):
+            raise ValueError("mode must be 0 or 1.")
 
-    def get_output(self, y, p_y_given_x):
-        loss = -T.mean(y * T.log(T.clip(p_y_given_x.ravel(), 1e-20, 1)) + (1 - y) * T.log(T.clip(1 - p_y_given_x.ravel(), 1e-20, 1)))
+    def get_output(self, y, output):
+        if y.ndim == 1:
+            loss = -(y * T.log(T.clip(output.ravel(), 1e-20, 1)) + (1 - y) * T.log(T.clip(1 - output.ravel(), 1e-20, 1)))
+        else:
+            loss = -T.sum((y * T.log(T.clip(output, 1e-20, 1)) + (1 - y) * T.log(T.clip(1 - output, 1e-20, 1))), axis=1)
+
+        if self.mode:
+            loss = T.sum(loss)
+        else:
+            loss = T.mean(loss)
         return self.weight * loss
 
 
 class MulticlassLogLoss(object):
-    def __init__(self, weight=1.):
+    def __init__(self, weight=1., mode=0):
         self.weight = weight
+        self.mode = mode
+        if not (self.mode == 0 or self.mode == 1):
+            raise ValueError("mode must be 0 or 1.")
 
-    def get_output(self, y, p_y_given_x):
+    def get_output(self, y, output):
         # if categorical variables
         if y.ndim == 1:
-            loss = -T.mean(T.log(1e-20 + p_y_given_x)[T.arange(y.shape[0]), y])
+            loss = -(T.log(1e-20 + output)[T.arange(y.shape[0]), y])
         # if one-hot
         elif y.ndim == 2:
-            loss = -T.mean(T.sum(y * T.log(1e-20 + p_y_given_x), axis=1))
+            loss = -(T.sum(y * T.log(1e-20 + output), axis=1))
         # else
         else:
             raise Exception('Label Error:label must be scalar or vector. If not miss, you must rewrite model, objective etc.')
 
+        if self.mode:
+            loss = T.sum(loss)
+        else:
+            loss = T.mean(loss)
         return self.weight * loss
 
 
-class KL(object):
-    def __init__(self, weight=1.):
+class SquaredError(object):
+    def __init__(self, weight=1., mode=0):
         self.weight = weight
+        self.mode = mode
+        if not (self.mode == 0 or self.mode == 1):
+            raise ValueError("mode must be 0 or 1.")
 
-    def get_output(self, p, q):
-        loss = T.mean(p * T.log(p / q) + (1 - p) * T.log((1 - p) / (1 - q)))
-        return self.weight * loss
-
-
-class MeanSquaredError(object):
-    def __init__(self, weight=1.):
-        self.weight = weight
-
-    def get_output(self, y, p_y_given_x):
-        loss = T.mean(T.sum(T.square(y - p_y_given_x), axis=1))
+    def get_output(self, y, output):
+        loss = (T.sum(T.square(y - output), axis=1))
+        if self.mode:
+            loss = T.sum(loss)
+        else:
+            loss = T.mean(loss)
         return self.weight * loss
 
 

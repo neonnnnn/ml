@@ -398,13 +398,13 @@ class Deconv(Conv):
 
 class ConvCUDNN(Conv):
     def get_output(self, input):
-        deconv_out = dnn_conv(
-            imgs=input,
-            filter=self.W,
+        conv_out = dnn_conv(
+            img=input,
+            kerns=self.W,
             border_mode=self.border_mode,
             subsample=self.subsample
         )
-        self.output = deconv_out + self.b.dimshuffle('x', 0, 'x', 'x')
+        self.output = conv_out + self.b.dimshuffle('x', 0, 'x', 'x')
         return self.output
 
 

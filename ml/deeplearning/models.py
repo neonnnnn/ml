@@ -7,6 +7,7 @@ import optimizers
 from .. import utils
 import scipy.sparse as sp
 import objectives
+import inspect
 
 
 class Sequential(object):
@@ -45,7 +46,13 @@ class Sequential(object):
             self.layers = self.layers + [this_layer]
 
     # set output
-    def get_top_output(self, x):
+    def get_top_output(self, x=None):
+        if x is None:
+            x = T.matrix('x')
+            if isinstance(self.n_in, int):
+                x = x.reshape((self.batch_size, self.n_in))
+            else:
+                x = x.reshape([self.batch_size] + list(self.n_in))
         output = self.layers[0].get_output(x)
         for layer in self.layers[1:]:
             output = layer.get_output(output)
@@ -53,7 +60,13 @@ class Sequential(object):
         return output
 
     # set output for train
-    def get_top_output_train(self, x):
+    def get_top_output_train(self, x=None):
+        if x is None:
+            x = T.matrix('x')
+            if isinstance(self.n_in, int):
+                x = x.reshape((self.batch_size, self.n_in))
+            else:
+                x = x.reshape([self.batch_size] + list(self.n_in))
         output = self.layers[0].get_output_train(x)
         for layer in self.layers[1:]:
             output = layer.get_output_train(output)
@@ -64,28 +77,41 @@ class Sequential(object):
         if type(self.loss) == list:
             loss = 0.
             for l in self.loss:
-                name = l.__class__.__name__
-                if name == "L2Regularization" or name == "L1Regularization":
+                args = inspect.getargspec(l.get_output)[0]
+                if len(args) == 1:
+                    loss += l.get_output()
+                elif len(args) == 2:
                     loss += l.get_output(self.layers)
                 else:
                     loss += l.get_output(y, output)
         else:
-            loss = self.loss.get_output(y, output)
-
+            args = inspect.getargspec(self.loss.get_output)[0]
+            if len(args) == 1:
+                loss = self.loss.get_output()
+            elif len(args) == 2:
+                loss = self.loss.get_output(self.layers)
+            else:
+                loss = self.loss.get_output(y, output)
         return loss
 
     # get train function
-    def get_train_function(self, y_ndim):
+    def get_train_function(self, y_ndim, add_cost=None):
         x = T.matrix('x')
-        if self.layers[0].__class__.__name__ == 'Conv':
-            x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
+        if isinstance(self.n_in, int):
+            x = x.reshape((self.batch_size, self.n_in))
         else:
-            x = x.reshape((self.batch_size, self.layers[0].n_in))
+            x = x.reshape([self.batch_size] + list(self.n_in))
+
         if y_ndim == 0:
             y = T.ivector('y')
-        elif y_ndim == 1:
+        else:
             y = T.matrix('y')
+
         output = self.get_top_output_train(x)
+        if isinstance(self.loss, list):
+            for l in self.loss:
+                if hasattr(l, "get_field"):
+                    l.get_field(x)
         cost = self.get_loss_output(y, output)
         updates = self.opt.get_update(cost, self.params)
         for layer in self.layers:
@@ -96,10 +122,10 @@ class Sequential(object):
     # get pred function
     def get_test_function(self):
         x = T.matrix('x')
-        if self.layers[0].__class__.__name__ == 'Conv':
-            x = x.reshape((self.batch_size, self.layers[0].n_in[0], self.layers[0].n_in[1], self.layers[0].n_in[2]))
+        if isinstance(self.n_in, int):
+            x = x.reshape((self.batch_size, self.n_in))
         else:
-            x = x.reshape((self.batch_size, self.layers[0].n_in))
+            x = x.reshape([self.batch_size] + list(self.n_in))
         output = self.get_top_output(x)
         return theano.function(inputs=[x], outputs=output)
 
@@ -108,9 +134,9 @@ class Sequential(object):
         batch_start = 0
         batch_end = 0
         # if x is sparse matrix
+        s = timeit.default_timer()
         if sp.issparse(x_train):
             for i in xrange(n_batches):
-                s = timeit.default_timer()
                 batch_end = batch_start + self.batch_size
                 train_loss += [train_model(x_train[batch_start:batch_end].toarray(), y_train[batch_start:batch_end])]
                 batch_start += self.batch_size
@@ -122,7 +148,6 @@ class Sequential(object):
                 train_loss += [train_model(x_train[-self.batch_size:].toarray(), y_train[-self.batch_size:])]
         else:
             for i in xrange(n_batches):
-                s = timeit.default_timer()
                 batch_end = batch_start + self.batch_size
                 train_loss += [train_model(x_train[batch_start:batch_end], y_train[batch_start:batch_end])]
                 batch_start += self.batch_size
@@ -214,7 +239,7 @@ class Sequential(object):
             else:
                 print 'loss:{0}'.format(loss.__class__.__name__)
 
-    def fit(self, x_train, y_train, x_valid=None, y_valid=None, valid_mode='loss', shuffle=True):
+    def fit(self, x_train, y_train, x_valid=None, y_valid=None, valid_mode='loss', shuffle=True, **kwargs):
         # get the output of each layers and define train_model
         if self.train_function is None:
             y_ndim = y_train[0].ndim
@@ -283,7 +308,7 @@ class Sequential(object):
 
         return train_loss
 
-    def batch_fit(self, x_train, y_train):
+    def onebatch_fit(self, x_train, y_train):
         # get the output of each layers and define train_model
         if self.train_function is None:
             y_ndim = y_train[0].ndim
