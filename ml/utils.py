@@ -63,7 +63,7 @@ def progbar(now, max_value, time=None):
     width = int(30 * now/max_value)
     prog = "[%s]" % ("=" * width + ">" + " " * (30 - width))
     if now != max and time is not None:
-        eta = time * (max_value - now)
+        eta = time * (max_value - now) / now
         sys.stdout.write("\r{0}{1}/{2}, eta:{3:.2f}s".format(prog, now, max_value, eta))
         sys.stdout.flush()
     else:

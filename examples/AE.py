@@ -2,7 +2,7 @@ import numpy as np
 from load_mnist import load_data
 from ml.deeplearning.layers import Dense, Activation, Dropout, Decoder
 from ml.deeplearning.optimizers import SGD, AdaGrad
-from ml.deeplearning.objectives import MeanSquaredError
+from ml.deeplearning.objectives import SquaredError
 from ml.deeplearning.models import Sequential
 from ml import utils
 
@@ -14,7 +14,7 @@ x_test, y_test = dataset[2]
 imshape = (1, 28, 28)
 
 opt = SGD(lr=0.01, momentum=0.9)
-loss = MeanSquaredError()
+loss = SquaredError()
 
 clf = Sequential(28*28, rng)
 
