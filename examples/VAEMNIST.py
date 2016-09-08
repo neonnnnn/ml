@@ -85,7 +85,7 @@ if __name__ == '__main__':
     encoder_decoder.add(decoder)
     encoder.compile(batch_size=batch_size, nb_epoch=1)
     # define loss
-    encoder_output = encoder.get_top_output_train()
+    encoder_output = encoder.get_output_train()
     kld = KLD(encoder=encoder, z_dim=z_dim)
     opt = SGD(lr=0.001, momentum=0.9)
     ce = CrossEntropy(mode=0)
