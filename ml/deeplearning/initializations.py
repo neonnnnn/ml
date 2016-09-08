@@ -3,28 +3,33 @@ import numpy as np
 from .. import utils
 
 
-def uniform(layers, shape, scale=0.05):
-    return layers.rng.uniform(low=-scale, high=scale, size=shape)
+def uniform(layer, shape, scale=0.05):
+    return layer.rng.uniform(low=-scale, high=scale, size=shape)
 
 
-def normal(layers, shape, mu=0., sigma=0.02):
-    return layers.rng.normal(mu, sigma, shape)
+def normal(layer, shape, mu=0., sigma=0.02):
+    return layer.rng.normal(mu, sigma, shape)
 
 
-def glorot_uniform(layers, shape):
-    scale = np.sqrt(6. / (layers.fan_in + layers.fan_out))
-    return uniform(layers, shape, scale)
+def glorot_uniform(layer, shape, coeff=6.):
+    if len(shape) == 2:
+        scale = np.sqrt(coeff / sum(shape))
+    else:
+        fan_in = np.prod(layer.filter_shape[1:])
+        fan_out = layer.filter_shape[0] * np.prod(layer.filter_shape[2:])
+        scale = np.sqrt(coeff / (fan_in + fan_out))
+    return uniform(layer, shape, scale)
 
 
-def lecun_uniform(layers, shape):
-    scale = np.sqrt(3. / layers.fan_in)
-    return uniform(layers, shape, scale)
+def lecun_uniform(layer, shape):
+    scale = np.sqrt(3. / layer.fan_in)
+    return uniform(layer, shape, scale)
 
 
-def he_conv_normal(layers, shape):
+def he_conv_normal(layer, shape):
     mu = 0
-    sigma = np.sqrt(2. / (layers.n_in[0] * (layers.filter_shape[0] ** 2)))
-    return normal(layers, shape, mu, sigma)
+    sigma = np.sqrt(2. / (layer.n_in[0] * (layer.filter_shape[0] ** 2)))
+    return normal(layer, shape, mu, sigma)
 
 
 def get_init(identifier):

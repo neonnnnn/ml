@@ -13,16 +13,19 @@ if __name__ == '__main__':
 
     rng = np.random.RandomState(123)
     loss = [MulticlassLogLoss()]
+    batch_size = 100
+    epoch = 100
     opt = SGD(0.01, 0.9)
-    clf = Sequential(784, loss=loss, rng=rng, opt=opt, batch_size=20, nb_epoch=100, iprint=True)
+    clf = Sequential(784, rng=rng, iprint=True)
 
     clf.add(Dropout(0.2))
-    for i in range(5):
+    for i in range(3):
         clf.add(Dense(500))
         clf.add(Activation("relu"))
         clf.add(Dropout(0.5))
-
     clf.add(Dense(10))
     clf.add(Activation('softmax'))
 
-    clf.fit(x_train, y_train, x_test, y_test, valid_mode="error_rate")
+    clf.compile(batch_size=batch_size, nb_epoch=epoch, loss=loss, opt=opt)
+
+    clf.fit(x_train, y_train, x_test, y_test, valid_mode="loss")

@@ -2,7 +2,7 @@ import theano.tensor as T
 import theano
 import numpy as np
 import load_mnist
-from ml.deeplearning.layers import Dense, Activation
+from ml.deeplearning.layers import Dense, Activation, Layer
 from ml.deeplearning.optimizers import SGD
 from ml.deeplearning.objectives import CrossEntropy
 from ml.deeplearning.models import Sequential
@@ -11,7 +11,7 @@ import sys
 import timeit
 
 
-class GaussianSamplingLayer(object):
+class GaussianSamplingLayer(Layer):
     def __init__(self, n_out):
         self.n_in = None
         self.n_out = n_out
@@ -43,7 +43,7 @@ class KLD(object):
         self.mode = mode
 
     def get_field(self, x):
-        output = self.encoder.get_top_output_train(x)
+        output = self.encoder.get_output_train(x)
         self.mean = output[:, :self.z_dim]
         self.log_var = output[:, self.z_dim:]
 
