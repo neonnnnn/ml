@@ -16,7 +16,7 @@ if __name__ == '__main__':
         rng = np.random.RandomState(123)
         opt = SGD(lr=params[0], momentum=params[1])
         loss = [MulticlassLogLoss(), L2Regularization(params[2])]
-        clf = Sequential(784, rng=rng, opt=opt, iprint=False)
+        clf = Sequential(784, rng=rng, iprint=False)
         clf.add(Dense(10))
         clf.add(Activation('softmax'))
         clf.compile(loss=loss, opt=opt, batch_size=20, nb_epoch=100)
