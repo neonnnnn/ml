@@ -26,9 +26,17 @@ class Layer(object):
     def get_output_train(self, input):
         pass
 
+    def __call__(self, input, train=True):
+        if train:
+            output = self.get_output_train(input)
+        else:
+            output = self.get_output(input)
+
+        return output
+
 
 class Dense(Layer):
-    def __init__(self, n_out, init='glorot_uniform'):
+    def __init__(self, n_out, init='glorot_uniform', rng=None):
         self.n_in = None
         self.n_out = n_out
         self.rng = None
@@ -583,3 +591,5 @@ class Reshape(Layer):
 
     def get_output_train(self, input):
         return self.get_output(input)
+
+

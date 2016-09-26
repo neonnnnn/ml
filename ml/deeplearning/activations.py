@@ -19,8 +19,8 @@ def relu(x):
 
 
 def leakyrelu(x, alpha=0.2):
-    if not 0<alpha<1:
-        raise ValueError('0< alpha < 1.')
+    if alpha <= 0 or alpha >= 1:
+        raise ValueError('0 < alpha < 1.')
     if isinstance(alpha, tuple):
         return T.nnet.relu(x, alpha[0])
     else:
