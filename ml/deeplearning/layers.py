@@ -26,7 +26,6 @@ class Layer(object):
     def get_output_train(self, input):
         pass
 
-<<<<<<< HEAD
     def __call__(self, input, train=True):
         if hasattr(self, 'params') and self.params is None:
             self.set_params()
@@ -40,11 +39,6 @@ class Layer(object):
 
 class Dense(Layer):
     def __init__(self, n_out, init='glorot_uniform', rng=None):
-=======
-
-class Dense(Layer):
-    def __init__(self, n_out, init='glorot_uniform'):
->>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         self.n_in = None
         self.n_out = n_out
         self.rng = rng
@@ -205,11 +199,7 @@ class BatchNormalization(Layer):
 
 
 class Dropout(Layer):
-<<<<<<< HEAD
     def __init__(self, p=0.5, rng=None):
-=======
-    def __init__(self, p=0.5):
->>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         self.n_in = None
         self.n_out = None
         self.rng = rng
@@ -231,11 +221,7 @@ class Dropout(Layer):
 
 
 class Conv(Layer):
-<<<<<<< HEAD
     def __init__(self, nb_filter, nb_height, nb_width, border_mode='valid', init='he_conv_normal', subsample=(1, 1), rng=None):
-=======
-    def __init__(self, nb_filter, nb_height, nb_width, border_mode='valid', init='he_conv_normal', subsample=(1, 1)):
->>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         self.n_in = None
         self.n_out = None
         self.rng = rng
@@ -334,11 +320,7 @@ class Conv(Layer):
 
 
 class Deconv(Conv):
-<<<<<<< HEAD
     def __init__(self, nb_filter, nb_height, nb_width, output_shape, border_mode='adapt', init='he_conv_normal', subsample=(1, 1), rng=None):
-=======
-    def __init__(self, nb_filter, nb_height, nb_width, output_shape, border_mode='adapt', init='he_conv_normal', subsample=(1, 1)):
->>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         self.n_in = None
         self.n_out = output_shape
         self.rng = rng
@@ -461,8 +443,6 @@ class Pool(Layer):
                 ignore_border=True
         )
         return output
-<<<<<<< HEAD
-=======
 
     def get_output_train(self, input):
         return self.get_output(input)
@@ -531,7 +511,6 @@ class MaxoutDense(Layer):
 
     def get_output(self, input):
         return T.max(T.dot(input, self.W) + self.b, axis=1)
->>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
 
     def get_output_train(self, input):
         return self.get_output(input)
@@ -554,11 +533,7 @@ class Flatten(Layer):
 
 
 class GaussianNoise(Layer):
-<<<<<<< HEAD
     def __init__(self, std=0.1, rng=None):
-=======
-    def __init__(self, std=0.1):
->>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         self.n_in = None
         self.n_out = None
         self.rng = rng

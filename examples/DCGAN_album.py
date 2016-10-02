@@ -33,7 +33,6 @@ def generator(rng, batch_size):
 def discriminator(rng, batch_size):
     d = Sequential((3, 64, 64), rng=rng, iprint=False)
     d.add(ConvCUDNN(64, 4, 4, init="normal", subsample=(2, 2), border_mode=(1, 1)))
-<<<<<<< HEAD
     d.add(Activation("elu"))
     d.add(ConvCUDNN(128, 4, 4, init="normal", subsample=(2, 2), border_mode=(1, 1)))
     d.add(BatchNormalization(moving=True))
@@ -45,19 +44,6 @@ def discriminator(rng, batch_size):
     d.add(Dense(1, init="normal"))
     d.add(Activation('sigmoid'))
     d.compile(batch_size=batch_size, nb_epoch=1, loss=[CrossEntropy(), L2Regularization(1e-5)], opt=Adam(lr=0.0002, beta_1=0.5))
-=======
-    d.add(Activation("leakyrelu"))
-    d.add(ConvCUDNN(128, 4, 4, init="normal", subsample=(2, 2), border_mode=(1, 1)))
-    d.add(BatchNormalization(moving=True))
-    d.add(Activation("leakyrelu"))
-    d.add(ConvCUDNN(256, 4, 4, init="normal", subsample=(2, 2), border_mode=(1, 1)))
-    d.add(BatchNormalization(moving=True))
-    d.add(Activation("leakyrelu"))
-    d.add(Flatten())
-    d.add(Dense(1, init="normal"))
-    d.add(Activation('sigmoid'))
-    d.compile(batch_size=batch_size, nb_epoch=1, loss=[CrossEntropy(), L2Regularization(1e-5)], opt=Adam(lr=0.0001, beta_1=0.5))
->>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
 
     return d
 
@@ -94,11 +80,7 @@ if __name__ == '__main__':
     concat_g = Sequential(100, rng2, iprint=False)
     concat_g.add(generator)
     concat_g.add(discriminator, add_params=False)
-<<<<<<< HEAD
     concat_g.compile(batch_size=batch_size, nb_epoch=1, loss=[CrossEntropy(), L2Regularization(1e-5)], opt=Adam(lr=0.0002, beta_1=0.5))
-=======
-    concat_g.compile(batch_size=batch_size, nb_epoch=1, loss=[CrossEntropy(), L2Regularization(1e-5)], opt=Adam(lr=0.0001, beta_1=0.5))
->>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
 
     # make label
     ones = np.ones(batch_size).astype(np.int8)

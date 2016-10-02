@@ -71,7 +71,6 @@ def softmax(x):
     return T.nnet.softmax(x)
 
 
-<<<<<<< HEAD
 class ReLU(Activation):
     def __call__(self, x):
         return T.nnet.relu(x)
@@ -125,43 +124,7 @@ class ELU(Activation):
 
 def elu(x, alpha=1.0):
     return ELU(alpha=alpha)(x)
-=======
-def relu(x):
-    return T.nnet.relu(x)
-
-
-def leakyrelu(x, alpha=0.2):
-    if not 0<alpha<1:
-        raise ValueError('0< alpha < 1.')
-    if isinstance(alpha, tuple):
-        return T.nnet.relu(x, alpha[0])
-    else:
-        return T.nnet.relu(x, alpha)
-
-
-def maxout(x, pool_size=4):
-    if pool_size <= 0:
-        raise ValueError('pool_size must be Natural number.')
-    if x.shape[1] % pool_size == 0:
-        raise ValueError('x.shape[1] must be divided by pool_size.')
-
-    return T.max(x.reshape(x.shape[0], x.shape[1]/pool_size, pool_size), axis=2)
-
-
-def elu(x, alpha=1.0):
-    if isinstance(alpha, tuple):
-        return T.switch(x > 0, x, alpha[0] * (T.exp(x) - 1.))
-    else:
-        return T.switch(x > 0, x, alpha * (T.exp(x) - 1.))
->>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
 
 
 def get_activation(identifier):
     return utils.get_from_module(identifier, globals(), 'activations')
-
-<<<<<<< HEAD
-=======
-
-ReLU = relu
-LeakyReLU = LReLU = leakyrelu
->>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
