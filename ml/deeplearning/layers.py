@@ -26,6 +26,7 @@ class Layer(object):
     def get_output_train(self, input):
         pass
 
+<<<<<<< HEAD
     def __call__(self, input, train=True):
         if hasattr(self, 'params') and self.params is None:
             self.set_params()
@@ -39,6 +40,11 @@ class Layer(object):
 
 class Dense(Layer):
     def __init__(self, n_out, init='glorot_uniform', rng=None):
+=======
+
+class Dense(Layer):
+    def __init__(self, n_out, init='glorot_uniform'):
+>>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         self.n_in = None
         self.n_out = n_out
         self.rng = rng
@@ -199,7 +205,11 @@ class BatchNormalization(Layer):
 
 
 class Dropout(Layer):
+<<<<<<< HEAD
     def __init__(self, p=0.5, rng=None):
+=======
+    def __init__(self, p=0.5):
+>>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         self.n_in = None
         self.n_out = None
         self.rng = rng
@@ -221,7 +231,11 @@ class Dropout(Layer):
 
 
 class Conv(Layer):
+<<<<<<< HEAD
     def __init__(self, nb_filter, nb_height, nb_width, border_mode='valid', init='he_conv_normal', subsample=(1, 1), rng=None):
+=======
+    def __init__(self, nb_filter, nb_height, nb_width, border_mode='valid', init='he_conv_normal', subsample=(1, 1)):
+>>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         self.n_in = None
         self.n_out = None
         self.rng = rng
@@ -320,7 +334,11 @@ class Conv(Layer):
 
 
 class Deconv(Conv):
+<<<<<<< HEAD
     def __init__(self, nb_filter, nb_height, nb_width, output_shape, border_mode='adapt', init='he_conv_normal', subsample=(1, 1), rng=None):
+=======
+    def __init__(self, nb_filter, nb_height, nb_width, output_shape, border_mode='adapt', init='he_conv_normal', subsample=(1, 1)):
+>>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         self.n_in = None
         self.n_out = output_shape
         self.rng = rng
@@ -443,6 +461,77 @@ class Pool(Layer):
                 ignore_border=True
         )
         return output
+<<<<<<< HEAD
+=======
+
+    def get_output_train(self, input):
+        return self.get_output(input)
+
+
+class MaxoutDense(Layer):
+    def __init__(self, n_out, pool_size=4, init='glorot_uniform'):
+        self.n_in = None
+        self.n_out = n_out
+        self.pool_size = pool_size
+        self.rng = None
+        self.W = None
+        self.b = None
+        self.init = initializations.get_init(init)
+        self.params = None
+        self.fan_in = None
+        self.fan_out = None
+
+    def set_rng(self, rng):
+        self.rng = rng
+
+    def set_input_shape(self, n_in):
+        self.n_in = n_in
+
+    def set_params(self):
+        if self.W is None:
+            W_values = np.asarray(self.init(self, (self.n_in, self.n_out*self.pool_size)).reshape(self.pool_size, self.n_in, self.n_out),
+                                  dtype=theano.config.floatX)
+            self.W = theano.shared(value=W_values, name='W', borrow=True)
+        if self.b is None:
+            b_values = np.zeros((self.pool_size, self.n_out), dtype=theano.config.floatX)
+            self.b = theano.shared(value=b_values, name='b', borrow=True)
+
+        self.params = [self.W, self.b]
+
+    def set_weight(self, W_values):
+        if not isinstance(W_values, np.ndarray):
+            raise TypeError('type(W_values) must be numpy.ndarray.')
+
+        if W_values.dtype != theano.config.floatX:
+            raise ValueError('W_values.dtype must be {0}'.format(theano.config.floatX))
+
+        if self.n_in is not None:
+            if W_values.shape != (self.pool_size, self.n_in, self.n_out):
+                raise ValueError('W_values.shape must be (self.pool_size, n_in, n_out)(i.e. {0})'.format((self.pool_size, self.n_in, self.n_out)))
+
+        if self.W is not None:
+            self.W.set_value(W_values)
+        else:
+            self.W = theano.shared(value=W_values, name='W', borrow=True)
+
+    def set_bias(self, b_values):
+        if not isinstance(b_values, np.ndarray):
+            raise TypeError('type(b_values')
+
+        if b_values.dtype != theano.config.floatX:
+            raise ValueError('W_values.dtype must be {0}'.format(theano.config.floatX))
+
+        if b_values.shape != (self.pool_size, self.n_out):
+            raise ValueError('b_values.shape must be (pool_size, n_out), i.e. {0}.'.format((self.pool_size, self.n_out)))
+
+        if self.b is not None:
+            self.b.set_value(b_values)
+        else:
+            self.b = theano.shared(value=b_values, borrow=True)
+
+    def get_output(self, input):
+        return T.max(T.dot(input, self.W) + self.b, axis=1)
+>>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
 
     def get_output_train(self, input):
         return self.get_output(input)
@@ -465,7 +554,11 @@ class Flatten(Layer):
 
 
 class GaussianNoise(Layer):
+<<<<<<< HEAD
     def __init__(self, std=0.1, rng=None):
+=======
+    def __init__(self, std=0.1):
+>>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         self.n_in = None
         self.n_out = None
         self.rng = rng

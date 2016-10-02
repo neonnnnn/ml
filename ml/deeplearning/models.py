@@ -49,7 +49,17 @@ class Sequential(object):
             self.layers = self.layers + [this_layer]
 
     # set output
+<<<<<<< HEAD
     def get_output(self, x):
+=======
+    def get_output(self, x=None):
+        if x is None:
+            x = T.matrix('x')
+            if isinstance(self.n_in, int):
+                x = x.reshape((self.batch_size, self.n_in))
+            else:
+                x = x.reshape([self.batch_size] + list(self.n_in))
+>>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         output = self.layers[0].get_output(x)
         for layer in self.layers[1:]:
             output = layer.get_output(output)
@@ -57,7 +67,17 @@ class Sequential(object):
         return output
 
     # set output for train
+<<<<<<< HEAD
     def get_output_train(self, x):
+=======
+    def get_output_train(self, x=None):
+        if x is None:
+            x = T.matrix('x')
+            if isinstance(self.n_in, int):
+                x = x.reshape((self.batch_size, self.n_in))
+            else:
+                x = x.reshape([self.batch_size] + list(self.n_in))
+>>>>>>> 0bb96a03dce4adca1b57a4d38ca762ff209ce11d
         output = self.layers[0].get_output_train(x)
         for layer in self.layers[1:]:
             output = layer.get_output_train(output)
