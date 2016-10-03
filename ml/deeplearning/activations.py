@@ -77,7 +77,7 @@ class ReLU(Activation):
 
 
 def relu(x):
-    return ReLU()(x)
+    return T.nnet.relu(x)
 
 
 class LeakyReLU(Activation):
@@ -92,7 +92,7 @@ class LeakyReLU(Activation):
 
 
 def leakyrelu(x, alpha=0.2):
-    return LeakyReLU(alpha=alpha)(x)
+    return T.nnet.relu(x, alpha)
 
 
 class Maxout(Activation):
@@ -110,7 +110,7 @@ class Maxout(Activation):
 
 
 def maxout(x, pool_size=4):
-    return Maxout(pool_size=pool_size)(x)
+    return Maxout(layer=None, pool_size=pool_size)(x)
 
 
 class ELU(Activation):

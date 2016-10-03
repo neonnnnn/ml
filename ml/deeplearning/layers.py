@@ -38,8 +38,8 @@ class Layer(object):
 
 
 class Dense(Layer):
-    def __init__(self, n_out, init='glorot_uniform', rng=None):
-        self.n_in = None
+    def __init__(self, n_out, n_in=None, init='glorot_uniform', rng=None):
+        self.n_in = n_in
         self.n_out = n_out
         self.rng = rng
         self.W = None
