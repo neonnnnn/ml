@@ -1,34 +1,58 @@
 import theano.tensor as T
+from abc import ABCMeta, abstractmethod
 
 
-class CrossEntropy(object):
-    def __init__(self, weight=1., mode=0):
+class Loss(object):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, weight=1, mode='mean'):
         self.weight = weight
-        self.mode = mode
-        if not (self.mode == 0 or self.mode == 1):
-            raise ValueError("mode must be 0 or 1.")
+        if mode == 'sum':
+            self.mode = 0
+        elif mode == 'mean':
+            self.mode = 1
+        elif mode == 0 or mode == 1:
+            self.mode = mode
+        else:
+            raise ValueError('mode must be 0 or "sum", or 1 or "mean".')
 
-    def get_output(self, y, output):
+    def __call__(self, *args):
+        self.calc(*args)
+
+    @abstractmethod
+    def calc(self, *args):
+        pass
+
+
+class Regularization(object):
+    __metaclass__ = ABCMeta
+
+    def __init__(self, weight=1e-5):
+        self.weight = weight
+
+    def __call__(self, *args):
+        self.calc(*args)
+
+    @abstractmethod
+    def calc(self, *args):
+        pass
+
+
+class CrossEntropy(Loss):
+    def calc(self, y, output):
         if y.ndim == 1:
             loss = -(y * T.log(T.clip(output.ravel(), 1e-20, 1)) + (1 - y) * T.log(T.clip(1 - output.ravel(), 1e-20, 1)))
         else:
             loss = -T.sum((y * T.log(T.clip(output, 1e-20, 1)) + (1 - y) * T.log(T.clip(1 - output, 1e-20, 1))), axis=1)
-
         if self.mode:
-            loss = T.sum(loss)
-        else:
             loss = T.mean(loss)
+        else:
+            loss = T.sum(loss)
         return self.weight * loss
 
 
-class MulticlassLogLoss(object):
-    def __init__(self, weight=1., mode=0):
-        self.weight = weight
-        self.mode = mode
-        if not (self.mode == 0 or self.mode == 1):
-            raise ValueError("mode must be 0 or 1.")
-
-    def get_output(self, y, output):
+class MulticlassLogLoss(Loss):
+    def calc(self, y, output):
         # if categorical variables
         if y.ndim == 1:
             loss = -(T.log(1e-20 + output)[T.arange(y.shape[0]), y])
@@ -37,52 +61,70 @@ class MulticlassLogLoss(object):
             loss = -(T.sum(y * T.log(1e-20 + output), axis=1))
         # else
         else:
-            raise Exception('Label Error:label must be scalar or vector. If not miss, you must rewrite model, objective etc.')
-
+            raise ValueError('Label must be scalar or vector.')
         if self.mode:
-            loss = T.sum(loss)
-        else:
             loss = T.mean(loss)
+        else:
+            loss = T.sum(loss)
         return self.weight * loss
 
 
-class SquaredError(object):
-    def __init__(self, weight=1., mode=0):
-        self.weight = weight
-        self.mode = mode
-        if not (self.mode == 0 or self.mode == 1):
-            raise ValueError("mode must be 0 or 1.")
+class Hinge(Loss):
+    def calc(self, y, output):
+        loss = T.maximum(1. - y * output, 0.)
+        if self.mode:
+            loss = T.mean(loss)
+        else:
+            loss = T.sum(loss)
+        return self.weight * loss
 
-    def get_output(self, y, output):
+
+class KLDivergence(Loss):
+    def calc(self, y, output):
+        loss = T.sum(y * T.log(T.clip(y / output, 1e-20, 1)), axis=1)
+        if self.mode:
+            loss = T.mean(loss)
+        else:
+            loss = T.sum(loss)
+        return self.weight * loss
+
+
+class SquaredError(Loss):
+    def calc(self, y, output):
         loss = (T.sum(T.square(y - output), axis=1))
         if self.mode:
-            loss = T.sum(loss)
-        else:
             loss = T.mean(loss)
+        else:
+            loss = T.sum(loss)
         return self.weight * loss
 
 
-class L2Regularization(object):
-    def __init__(self, weight=0.0001):
-        self.weight = weight
-
-    def get_output(self, layers):
-        L2_reg = 0
+class L2Regularization(Regularization):
+    def calc(self, layers):
+        reg = 0
         for layer in layers:
             if hasattr(layer, 'W'):
-                L2_reg += (layer.W ** 2).sum()
+                reg += T.sum(layer.W ** 2)
+        return self.weight * reg
 
-        return self.weight * L2_reg
 
-
-class L1Regularization(object):
-    def __init__(self, weight=0.0001):
-        self.weight = weight
-
-    def get_output(self, layers):
-        L1_reg = 0
+class L1Regularization(Regularization):
+    def calc(self, layers):
+        reg = 0
         for layer in layers:
             if hasattr(layer, 'W'):
-                L1_reg += abs(layer.W).sum()
+                reg += T.sum(abs(layer.W))
+        return self.weight * reg
 
-        return self.weight * L1_reg
+
+class KLDivergenceRegularization(Regularization):
+    def __init__(self, idx, rho=0.2, weight=1e-5):
+        super(KLDivergenceRegularization, self).__init__(weight)
+        self.idx = idx
+        if type(idx, int) != 'int':
+            raise TypeError("the type of idx must be int.")
+        self.rho = rho
+
+    def calc(self, layers):
+        reg = T.sum(self.rho * T.log(T.clip(self.rho / layers[self.idx].W), 1e-20, 1))
+        return self.weight * reg

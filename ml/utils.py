@@ -1,10 +1,73 @@
 from __future__ import absolute_import
 import six
+from operator import itemgetter
 import numpy as np
 import sklearn
 import sys
 import matplotlib.pyplot as plt
 from scipy.misc import imsave
+
+
+class BatchIterator(object):
+    def __init__(self, data, batch_size, shuffle=True, seed=1234):
+        self._data = data
+        self._current = 0
+        self.batch_size = batch_size
+
+        if isinstance(data, (tuple, list)):
+            self.n_samples = len(data[0])
+            self._data_cate = len(data)
+            if self._data_cate == 1:
+                self._data = np.array(self._data[0])
+        else:
+            self.n_samples = len(data)
+            self._data_cate = 1
+
+        if batch_size > self.n_samples:
+            raise ValueError("Invalid Batch size. Batch size must be <= n_samples")
+
+        self.n_batches = self.n_samples / self.batch_size
+        if self.n_samples % self.batch_size != 0:
+            self.n_batches += 1
+
+        if shuffle:
+            self._rng = np.random.RandomState(seed)
+            self._idx = self._rng.permutation(self.n_samples)
+        else:
+            self.rng = None
+            self._idx = None
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self._current > (self.n_batches - 1):
+            self._current = 0
+            raise StopIteration
+
+        if self._data_cate == 1:
+            batch = [self._make_batch(self._data)]
+        else:
+            batch = map(lambda x: self._make_batch(x), self._data)
+
+        self._current += 1
+
+        return batch
+
+    def _make_batch(self, data):
+        if self._current == self.n_batches - 1:
+            if self._idx is None:
+                batch = data[-self.batch_size:]
+            else:
+                batch = data[self._idx[-self.batch_size:]]
+        else:
+            start = self._current * self.batch_size
+            end = start + self.batch_size
+            if self._idx is None:
+                batch = data[start:end]
+            else:
+                batch = data[self._idx[start:end]]
+        return batch
 
 
 def num_of_error(y, p_y_given_x):
@@ -62,14 +125,13 @@ def make_validation(x, y, validation_rate):
 def progbar(now, max_value, time=None):
     width = int(30 * now/max_value)
     prog = "[%s]" % ("=" * width + ">" + " " * (30 - width))
-    if now != max and time is not None:
+    if now != max_value and time is not None:
         eta = time * (max_value - now) / now
         sys.stdout.write("\r{0}{1}/{2}, eta:{3:.2f}s".format(prog, now, max_value, eta))
         sys.stdout.flush()
     else:
-        sys.stdout.write("\r{0}{1}/{2}".format(prog, now, max_value))
+        sys.stdout.write("\r{0}{1}/{2}, {3:.2f}s".format(prog, now, max_value, time))
         sys.stdout.flush()
-        sys.std.write("\n")
 
 
 def visualize(data, figshape, filename, nomarlization_flag=True):
@@ -93,8 +155,8 @@ def saveimg(data, figshape, filename):
     h, w = data[0].shape[:2]
     img = np.zeros((h*figshape[0], w*figshape[1]))
     for n, x in enumerate(data):
-        j = n/figshape[0]
-        i = n%figshape[1]
+        j = n / figshape[0]
+        i = n % figshape[1]
         img[j*h:j*h+h, i*w:i*w+w] = x
     if filename is not None:
         imsave(filename, img)
@@ -105,8 +167,8 @@ def color_saveimg(data, (nh, nw), save_path=None):
     h, w = data[0].shape[1:]
     img = np.zeros((h*nh, w*nw, 3))
     for n, x in enumerate(data):
-        j = n/nw
-        i = n%nw
+        j = n / nw
+        i = n % nw
         img[j*h:j*h+h, i*w:i*w+w, :] = x.transpose(1, 2, 0)
     if save_path is not None:
         imsave(save_path, img)

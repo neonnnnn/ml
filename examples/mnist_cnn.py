@@ -1,8 +1,8 @@
 import numpy as np
 import load_mnist
-from ml.deeplearning.layers import Dense, Activation, Dropout, Conv, Pool, Flatten
+from ml.deeplearning.layers import Dense, Activation, Conv, Pool, Flatten
 from ml.deeplearning.optimizers import SGD
-from ml.deeplearning.objectives import MulticlassLogLoss, L2Regularization
+from ml.deeplearning.objectives import MulticlassLogLoss
 from ml.deeplearning.models import Sequential
 
 
@@ -33,4 +33,4 @@ if __name__ == '__main__':
     clf.add(Activation('softmax'))
 
     clf.compile(opt=opt, loss=loss)
-    clf.fit(x_train, y_train, x_test, y_test, valid_mode="loss")
+    clf.fit(x_train, y_train, x_test, y_test, valid_mode="error_rate")

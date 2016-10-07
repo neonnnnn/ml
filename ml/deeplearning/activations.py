@@ -1,5 +1,5 @@
 import theano.tensor as T
-from .. import utils
+from ml import utils
 from abc import ABCMeta, abstractmethod
 
 
@@ -13,33 +13,30 @@ class Activation(object):
         if hasattr(self.layer, 'rng'):
             setattr(self, 'None', None)
         if hasattr(self.layer, 'params'):
-            setattr(self, 'params', [])
+            setattr(self, 'params', None)
         if hasattr(self.layer, 'updates'):
-            setattr(self, 'updates', [])
+            setattr(self, 'updates', None)
 
     @abstractmethod
     def __call__(self, x):
         pass
 
-    def get_output(self, x):
-        self.__call__(self.layer.get_output(x))
-
-    def get_output_train(self, x):
-        self.__call__(self.layer.get_output_train(x))
+    def forward(self, x, train=True):
+        self.__call__(self.layer.forward(x, train))
 
     def set_rng(self, rng):
         if hasattr(self.layer, 'rng'):
             self.layer.set_rng(rng)
 
     def set_params(self):
-        if hasattr(self.layer, 'params'):
-            self.layer.set_params
+        self.layer.set_params()
+        setattr(self, 'params', self.layer.params)
 
 
 class Sigmoid(Activation):
     def __init__(self, layer=None, alpha=1.0):
         super(Sigmoid, self).__init__(layer)
-        self.a = alpha
+        self.alpha = alpha
 
     def __call__(self, x):
         return T.nnet.sigmoid(self.alpha*x)
@@ -110,7 +107,9 @@ class Maxout(Activation):
 
 
 def maxout(x, pool_size=4):
-    return Maxout(layer=None, pool_size=pool_size)(x)
+    if x.shape[1] % pool_size == 0:
+        raise ValueError('x.shape[1] must be divided by pool_size.')
+    return T.max(x.reshape(x.shape[0], x.shape[1] / pool_size, pool_size), axis=2)
 
 
 class ELU(Activation):
@@ -123,7 +122,7 @@ class ELU(Activation):
 
 
 def elu(x, alpha=1.0):
-    return ELU(alpha=alpha)(x)
+    return T.switch(x > 0, x, alpha * (T.exp(x) - 1.))
 
 
 def get_activation(identifier):
