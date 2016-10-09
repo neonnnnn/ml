@@ -34,7 +34,7 @@ def run(inputs, function, iprint=True):
         s = timeit.default_timer()
         i = 0
     for batch in inputs:
-        output += [function(*[b if not sp.issparse(b) else b.toarray() for b in batch])]
+        output += function(*[b if not sp.issparse(b) else b.toarray() for b in batch])
         if iprint:
             e = timeit.default_timer()
             progbar(i+1, n_batches, e - s)
@@ -265,11 +265,14 @@ class Sequential(object):
     def __predict(self, data_iter, function):
         n_samples = data_iter.n_samples
         output = run(data_iter, function, False)
-        pred = reduce(lambda x, y: np.vstack((x, y)), output[:-1])
-        if pred.shape[0] + output[-1].shape[0] == n_samples:
-            pred = np.vstack((pred, output[-1]))
+        if len(output) == 1:
+            pred = output[0]
         else:
-            pred = np.vstack((pred, output[-1][-(n_samples - pred.shape[0]):]))
+            pred = reduce(lambda x, y: np.vstack((x, y)), output[:-1])
+            if pred.shape[0] + output[-1].shape[0] == n_samples:
+                pred = np.vstack((pred, output[-1]))
+            else:
+                pred = np.vstack((pred, output[-1][-(n_samples - pred.shape[0]):]))
 
         if self.layers[-1].n_out == 1:
             pred = pred.ravel()

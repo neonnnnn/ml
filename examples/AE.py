@@ -26,8 +26,8 @@ clf.compile(opt=opt, loss=loss)
 
 clf.fit(x_train, x_train)
 
-utils.visualize((clf.layers[0].W.get_value().T).reshape(500, 28, 28), (10, 10), "autoencoder_W.png")
+utils.visualize((clf.layers[0].W.get_value().T).reshape(500, 28, 28), (10, 10), "imgs/autoencoder_W.png")
 
 output = clf.predict(x_test)
 
-utils.visualize(output.reshape(output.shape[0], 28, 28), (10, 10),  "autoencoder_output.png")
+utils.visualize(output.reshape(output.shape[0], 28, 28), (10, 10),  "imgs/autoencoder_output.png")
