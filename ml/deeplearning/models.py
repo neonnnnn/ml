@@ -322,8 +322,8 @@ class Model(object):
             setattr(self, key, value)
 
         self.set_input_shape()
-        self.set_params()
         self.set_rng(rng)
+        self.set_params()
 
     def set_params(self):
         paramslayers = filter(lambda x: hasattr(x, 'params'), map(lambda x: getattr(self, x), self.__dict__.keys()))

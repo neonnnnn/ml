@@ -191,7 +191,6 @@ class Dropout(Layer):
     def set_input_shape(self, n_in):
         self.n_in = n_in
         self.n_out = n_in
-        print self.n_in
 
     def forward(self, x, train=True):
         if train:
