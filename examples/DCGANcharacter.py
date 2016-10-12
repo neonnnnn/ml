@@ -41,10 +41,10 @@ def discriminator(rng, batch_size):
     #d.add(BatchNormalization(moving=True))
     d.add(Activation("elu"))
     d.add(ConvCUDNN(256, 4, 4, init="normal", subsample=(2, 2), border_mode=(1, 1)))
-    d.add(BatchNormalization(moving=True))
+    #d.add(BatchNormalization(moving=True))
     d.add(Activation("elu"))
     d.add(ConvCUDNN(512, 4, 4, init="normal", subsample=(2, 2), border_mode=(1, 1)))
-    d.add(BatchNormalization(moving=True))
+    #d.add(BatchNormalization(moving=True))
     d.add(Activation("elu"))
     d.add(Flatten())
     d.add(Dense(1, init="normal"))
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     print data_size
 
     # set hyper-parameter
-    batch_size = 64
+    batch_size = 100
     k = 3
     n_epoch = 300
 
