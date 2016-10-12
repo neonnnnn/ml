@@ -363,7 +363,7 @@ class Model(object):
             elif value.ndim == 2:
                 ret = T.matrix(name=key)
             elif value.ndim == 3:
-                ret = T.matrix(name=key)
+                ret = T.tensor4(name=key)
 
         return ret
 
