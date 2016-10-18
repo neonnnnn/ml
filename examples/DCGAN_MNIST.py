@@ -90,13 +90,13 @@ if __name__ == '__main__':
         for j in xrange(50000/batch_size):
             # train discriminator
             s1 = timeit.default_timer()
-            discriminator.fit_onebatch(X_train[start:start + batch_size], ones)
-            discriminator.fit_onebatch(imitation, zeros)
+            discriminator.onebatch_fit(X_train[start:start + batch_size], ones)
+            discriminator.onebatch_fit(imitation, zeros)
 
             # train generator
             if j % k == 0:
                 z = np.random.uniform(low=-1, high=1, size=batch_size * 100).reshape(batch_size, 100).astype(np.float32)
-                concat_g.batch_fit(z, ones)
+                concat_g.onebatch_fit(z, ones)
             # generate imitation
             z = np.random.uniform(low=-1, high=1, size=batch_size * 100).reshape(batch_size, 100).astype(np.float32)
             imitation = generator.predict(z)
@@ -114,7 +114,7 @@ if __name__ == '__main__':
         sys.stdout.write(', %.2fs' % (e - s))
         sys.stdout.write("\n")
 
-        if (i+1) % 10 == 0:
+        if (i+1) % 50 == 0:
             print "generate imitation..."
             generation = 255.0 * (generator.predict(z_plot).reshape(100, 28, 28) + 1.) / 2.
             utils.saveimg(generation, (10, 10), "imgs/DCGAN/DCGAN_MNIST_epoch" + str(i+1) + ".png")

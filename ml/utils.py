@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 import six
-from operator import itemgetter
 import numpy as np
 import sklearn
 import sys
@@ -107,6 +106,13 @@ def reshape_img(data, imshape):
         return np.reshape(data, (data.shape[0], imshape[0], imshape[1], imshape[2]))
 
 
+def onehot(y):
+    max_idx = np.max(y)
+    onehot_y = np.zeros((len(y), max_idx), dtype=np.int32)
+    onehot_y[np.arange(len(y)), y] = 1
+    return onehot_y
+
+
 def shuffle(x, y):
     return sklearn.utils.shuffle(x, y, random_state=1234)
 
@@ -164,8 +170,8 @@ def saveimg(data, figshape, filename):
 
 
 def color_saveimg(data, (nh, nw), save_path=None):
-    h, w = data[0].shape[1:]
-    img = np.zeros((h*nh, w*nw, 3))
+    c, h, w = data[0].shape[:]
+    img = np.zeros((h*nh, w*nw, c))
     for n, x in enumerate(data):
         j = n / nw
         i = n % nw

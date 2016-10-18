@@ -34,7 +34,7 @@ def run(inputs, function, iprint=True):
         s = timeit.default_timer()
         i = 0
     for batch in inputs:
-        output += [function(*[b if not sp.issparse(b) else b.toarray() for b in batch])]
+        output += function(*[b if not sp.issparse(b) else b.toarray() for b in batch])
         if iprint:
             e = timeit.default_timer()
             progbar(i+1, n_batches, e - s)
@@ -94,11 +94,10 @@ class Sequential(object):
         return reduce(lambda a, b: b.forward(a, train), [x] + self.layers)
 
     def function(self, mode='train', y_ndim=None):
-        x = T.matrix('x')
-        if isinstance(self.n_in, int):
-            x = x.reshape((self.batch_size, self.n_in))
-        else:
-            x = x.reshape([self.batch_size] + list(self.n_in))
+        if isinstance(self.n_in, (tuple, list)):
+            x = T.tensor4('x')
+        elif isinstance(self.n_in, int):
+            x = T.matrix('x')
 
         if mode == 'train' or mode == 'test':
             if y_ndim is None:
@@ -265,11 +264,14 @@ class Sequential(object):
     def __predict(self, data_iter, function):
         n_samples = data_iter.n_samples
         output = run(data_iter, function, False)
-        pred = reduce(lambda x, y: np.vstack((x, y)), output[:-1])
-        if pred.shape[0] + output[-1].shape[0] == n_samples:
-            pred = np.vstack((pred, output[-1]))
+        if len(output) == 1:
+            pred = output[0]
         else:
-            pred = np.vstack((pred, output[-1][-(n_samples - pred.shape[0]):]))
+            pred = reduce(lambda x, y: np.vstack((x, y)), output[:-1])
+            if pred.shape[0] + output[-1].shape[0] == n_samples:
+                pred = np.vstack((pred, output[-1]))
+            else:
+                pred = np.vstack((pred, output[-1][-(n_samples - pred.shape[0]):]))
 
         if self.layers[-1].n_out == 1:
             pred = pred.ravel()
@@ -281,8 +283,7 @@ class Sequential(object):
             self.test_function = self.function('test', data_y[0].ndim)
         test_iter = BatchIterator((data_x, data_y), self.batch_size, False)
         output = self.__test(test_iter, self.test_function, mode)
-
-        return np.mean(output)
+        return output
 
     def __test(self, data_iter, function, mode='mean'):
         output = run(data_iter, function, False)
@@ -319,8 +320,8 @@ class Model(object):
             setattr(self, key, value)
 
         self.set_input_shape()
-        self.set_params()
         self.set_rng(rng)
+        self.set_params()
 
     def set_params(self):
         paramslayers = filter(lambda x: hasattr(x, 'params'), map(lambda x: getattr(self, x), self.__dict__.keys()))
@@ -349,3 +350,22 @@ class Model(object):
     @abstractmethod
     def function(self, *inputs, **kwargs):
         pass
+
+    @staticmethod
+    def variables(**kwargs):
+        ret = []
+        for key, value in kwargs.items():
+            if value.ndim == 1:
+                if value.dype == theano.config.floatX:
+                    ret += T.vector(name=key)
+                elif value.dtype == 'int':
+                    ret += T.ivector(name=key)
+            elif value.ndim == 2:
+                ret = T.matrix(name=key)
+            elif value.ndim == 3:
+                ret = T.tensor4(name=key)
+
+        return ret
+
+
+

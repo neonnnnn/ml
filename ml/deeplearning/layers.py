@@ -27,12 +27,13 @@ class Layer(object):
 
 
 class Dense(Layer):
-    def __init__(self, n_out, n_in=None, init='glorot_uniform', rng=None):
+    def __init__(self, n_out, n_in=None, init='glorot_uniform', rng=None, bias=True):
         self.n_in = n_in
         self.n_out = n_out
         self.rng = rng
         self.W = None
         self.b = None
+        self.bias = bias
         self.init = initializations.get_init(init)
         self.params = None
 
@@ -50,11 +51,12 @@ class Dense(Layer):
             W_values = np.asarray(self.init(self, (self.n_in, self.n_out)), dtype=theano.config.floatX)
             self.W = theano.shared(value=W_values, name='W', borrow=True)
 
-        if self.b is None:
-            b_values = np.zeros((self.n_out,), dtype=theano.config.floatX)
-            self.b = theano.shared(value=b_values, name='b', borrow=True)
-
-        self.params = [self.W, self.b]
+        self.params = [self.W]
+        if self.bias:
+            if self.b is None:
+                b_values = np.zeros((self.n_out,), dtype=theano.config.floatX)
+                self.b = theano.shared(value=b_values, name='b', borrow=True)
+            self.params = [self.W, self.b]
 
     def set_weight(self, W_values):
         if not isinstance(W_values, np.ndarray):
@@ -191,7 +193,6 @@ class Dropout(Layer):
     def set_input_shape(self, n_in):
         self.n_in = n_in
         self.n_out = n_in
-        print self.n_in
 
     def forward(self, x, train=True):
         if train:

@@ -91,7 +91,10 @@ class KLDivergence(Loss):
 
 class SquaredError(Loss):
     def calc(self, y, output):
-        loss = (T.sum(T.square(y - output), axis=1))
+        if y.ndim == 1:
+            loss = (T.square(y - output))
+        else:
+            loss = (T.sum(T.square(y - output), axis=1))
         if self.mode:
             loss = T.mean(loss)
         else:

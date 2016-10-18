@@ -26,8 +26,8 @@ clf.compile(loss=loss, opt=opt)
 
 clf.fit(x_train, x_train)
 
-utils.visualize(clf.layers[0].W.get_value().T, (28, 28), (10, 10), "denoising-autoencoder_W.png")
+utils.visualize(clf.layers[0].W.get_value().T, (28, 28), (10, 10), "imgs/denoising-autoencoder_W.png")
 
 output = clf.predict(x_test)
 
-utils.visualize(output, (28, 28), (10, 10), "denoising-autoencoder_output.png")
+utils.visualize(output, (28, 28), (10, 10), "imgs/denoising-autoencoder_output.png")
