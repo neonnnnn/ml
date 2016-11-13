@@ -6,14 +6,16 @@ import theano.tensor as T
 class SGD(object):
     def __init__(self, lr=0.001, momentum=0.9):
         self.lr = theano.shared(np.asarray(lr, dtype=theano.config.floatX))
-        self.momentum = theano.shared(np.asarray(momentum, dtype=theano.config.floatX))
+        self.momentum = theano.shared(np.asarray(momentum,
+                                                 dtype=theano.config.floatX))
 
     def get_update(self, cost, params):
         grads = T.grad(cost, params)
         updates = []
 
         for p, g in zip(params, grads):
-            m = theano.shared(value=np.asarray(np.zeros(p.get_value().shape), dtype=theano.config.floatX))
+            m = theano.shared(value=np.asarray(np.zeros(p.get_value().shape),
+                                               dtype=theano.config.floatX))
             next_m = -self.lr * g + self.momentum * m
             updates.append((m, next_m))
             next_p = p + next_m
@@ -25,12 +27,15 @@ class SGD(object):
 class AdaGrad(object):
     def __init__(self, lr=0.01, eps=1e-6):
         self.lr = theano.shared(np.asarray(lr, dtype=theano.config.floatX))
-        self.eps = eps
+        self.eps = theano.shared(np.asarray(eps, dtype=theano.config.floatX))
 
     def get_update(self, cost, params):
         grads = T.grad(cost, params)
         updates = []
-        accumulate_gradient = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape), dtype=theano.config.floatX)) for p in params]
+        accumulate_gradient \
+            = [theano.shared(np.asarray(np.zeros(p.get_value().shape),
+                                        dtype=theano.config.floatX))
+               for p in params]
 
         for p, g, a_g in zip(params, grads, accumulate_gradient):
             next_a_g = a_g + T.sqr(g)
@@ -51,14 +56,22 @@ class AdaDelta(object):
     def get_update(self, cost, params):
         grads = T.grad(cost, params)
         updates = []
-        accumulate_gradient = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape), dtype=theano.config.floatX)) for p in params]
-        accumulate_updates = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape), dtype=theano.config.floatX)) for p in params]
+        accumulate_gradient \
+            = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape),
+                                              dtype=theano.config.floatX))
+               for p in params]
+        accumulate_updates \
+            = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape),
+                                              dtype=theano.config.floatX))
+               for p in params]
 
-        for p, g, a_g, a_u in zip(params, grads, accumulate_gradient, accumulate_updates):
+        for p, g, a_g, a_u in zip(params, grads,
+                                  accumulate_gradient, accumulate_updates):
             next_a_g = self.rho * a_g + (1 - self.rho) * T.sqr(g)
             updates.append((a_g, next_a_g))
 
-            delta_params = g * T.sqrt(a_u + self.eps) / T.sqrt(next_a_g + self.eps)
+            delta_params = (g * T.sqrt(a_u + self.eps)
+                            / T.sqrt(next_a_g + self.eps))
             next_p = p - self.lr * delta_params
             updates.append((p, next_p))
 
@@ -76,7 +89,10 @@ class RMSprop(object):
 
     def get_update(self, cost, params):
         grads = T.grad(cost, params)
-        accumulate_gradient = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape), dtype=theano.config.floatX)) for p in params]
+        accumulate_gradient \
+            = [theano.shared(np.asarray(np.zeros(p.get_value().shape),
+                                        dtype=theano.config.floatX))
+               for p in params]
         updates = []
 
         for p, g, a_g in zip(params, grads, accumulate_gradient):
@@ -92,9 +108,12 @@ class RMSprop(object):
 class Adam(object):
     def __init__(self, lr=0.001, beta_1=0.9, beta_2=0.999, eps=1e-8):
         self.lr = theano.shared(np.asarray(lr, dtype=theano.config.floatX))
-        self.beta_1 = theano.shared(np.asarray(beta_1, dtype=theano.config.floatX))
-        self.beta_2 = theano.shared(np.asarray(beta_2, dtype=theano.config.floatX))
-        self.eps = theano.shared(np.asarray(eps, dtype=theano.config.floatX))
+        self.beta_1 = theano.shared(np.asarray(beta_1,
+                                               dtype=theano.config.floatX))
+        self.beta_2 = theano.shared(np.asarray(beta_2,
+                                               dtype=theano.config.floatX))
+        self.eps = theano.shared(np.asarray(eps,
+                                            dtype=theano.config.floatX))
 
     def get_update(self, cost, params):
         grads = T.grad(cost, params)
@@ -104,10 +123,15 @@ class Adam(object):
         updates.append((i, i+1))
 
         t = i+1
-        lr_t = self.lr * T.sqrt(1 - T.pow(self.beta_2, t)) / (1 - T.pow(self.beta_1, t))
+        lr_t = (self.lr * T.sqrt(1 - T.pow(self.beta_2, t))
+                / (1 - T.pow(self.beta_1, t)))
         eps_hat = self.eps * T.sqrt(1 - self.beta_2 ** t)
-        ms = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape), dtype=theano.config.floatX)) for p in params]
-        vs = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape), dtype=theano.config.floatX)) for p in params]
+        ms = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape),
+                                             dtype=theano.config.floatX))
+              for p in params]
+        vs = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape),
+                                             dtype=theano.config.floatX))
+              for p in params]
 
         for p, g, m, v in zip(params, grads, ms, vs):
             m_t = (self.beta_1 * m) + (1. - self.beta_1) * g
@@ -124,8 +148,10 @@ class Adam(object):
 class AdaMax(object):
     def __init__(self, lr=0.002, beta_1=0.9, beta_2=0.999):
         self.lr = theano.shared(np.asarray(lr, dtype=theano.config.floatX))
-        self.beta_1 = theano.shared(np.asarray(beta_1, dtype=theano.config.floatX))
-        self.beta_2 = theano.shared(np.asarray(beta_2, dtype=theano.config.floatX))
+        self.beta_1 = theano.shared(np.asarray(beta_1,
+                                               dtype=theano.config.floatX))
+        self.beta_2 = theano.shared(np.asarray(beta_2,
+                                               dtype=theano.config.floatX))
 
     def get_update(self, cost, params):
         grads = T.grad(cost, params)
@@ -136,8 +162,12 @@ class AdaMax(object):
         
         t = i+1
         lr_t = self.lr / (1. - T.pow(self.beta_1, t))
-        ms = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape), dtype=theano.config.floatX)) for p in params]
-        us = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape), dtype=theano.config.floatX)) for p in params]
+        ms = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape),
+                                             dtype=theano.config.floatX))
+              for p in params]
+        us = [theano.shared(value=np.asarray(np.zeros(p.get_value().shape),
+                                             dtype=theano.config.floatX))
+              for p in params]
 
         for p, g, m, u in zip(params, grads, ms, us):
             m_t = self.beta_1 * m + (1. - self.beta_1) * g

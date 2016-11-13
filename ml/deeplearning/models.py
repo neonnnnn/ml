@@ -11,7 +11,7 @@ import inspect
 from abc import ABCMeta, abstractmethod
 
 
-# filter out layers which dont have method
+# filter out layers which don't have method
 def filter_method(method, origin):
     return filter(lambda x: hasattr(x, method), origin)
 
@@ -34,7 +34,8 @@ def run(inputs, function, iprint=True):
         s = timeit.default_timer()
         i = 0
     for batch in inputs:
-        output += function(*[b if not sp.issparse(b) else b.toarray() for b in batch])
+        output += function(*[b if not sp.issparse(b) else b.toarray()
+                             for b in batch])
         if iprint:
             e = timeit.default_timer()
             progbar(i+1, n_batches, e - s)
@@ -43,7 +44,8 @@ def run(inputs, function, iprint=True):
 
 
 def onebatch_run(inputs, function):
-    output = function(*[b if not sp.issparse(b) else b.toarray() for b in [inputs]])
+    output = function(*[b if not sp.issparse(b) else b.toarray()
+                        for b in [inputs]])
     return output
 
 
@@ -78,9 +80,9 @@ class Sequential(object):
                 this_layer.set_rng(self.rng)
             # set input shape
             if len(self.layers) == 0:
-                this_layer.set_input_shape(self.n_in)
+                this_layer.set_shape(self.n_in)
             else:
-                this_layer.set_input_shape(self.layers[len(self.layers) - 1].n_out)
+                this_layer.set_shape(self.layers[len(self.layers) - 1].n_out)
             # set params
             if hasattr(this_layer, "params"):
                 if this_layer.params is None:
@@ -101,7 +103,7 @@ class Sequential(object):
 
         if mode == 'train' or mode == 'test':
             if y_ndim is None:
-                raise ValueError('If mode is "train" or "test", you set y_ndim')
+                raise ValueError('When "train" or "test", you set y_ndim')
             if y_ndim == 0:
                 y = T.ivector('y')
             else:
@@ -114,7 +116,8 @@ class Sequential(object):
                 for layer in self.layers:
                     if hasattr(layer, "updates"):
                         updates += layer.updates
-                function = theano.function(inputs=[x, y], outputs=[cost], updates=updates)
+                function = theano.function(inputs=[x, y], outputs=[cost],
+                                           updates=updates)
             else:
                 output = self.forward(x, train=False)
                 cost = self.get_loss_output(y, output)
@@ -150,7 +153,8 @@ class Sequential(object):
         return loss
 
     # define batch_size, nb_epoch, loss and optimization method
-    def compile(self, batch_size=128, nb_epoch=100, opt=optimizers.SGD(), loss=objectives.MulticlassLogLoss()):
+    def compile(self, batch_size=128, nb_epoch=100, opt=optimizers.SGD(),
+                loss=objectives.MulticlassLogLoss()):
         self.opt = opt
         self.loss = loss
         self.batch_size = batch_size
@@ -171,25 +175,33 @@ class Sequential(object):
             else:
                 print 'loss:{0}'.format(loss.__class__.__name__)
 
-    def fit(self, x_train, y_train, x_valid=None, y_valid=None, valid_mode='loss', shuffle=True):
+    def fit(self, x_train, y_train, x_valid=None, y_valid=None,
+            valid_mode='loss', shuffle=True):
         # get the output of each layers and define train_model
         if self.train_function is None:
             y_ndim = y_train[0].ndim
             self.train_function = self.function('train', y_ndim)
 
-        train_iter = BatchIterator((x_train, y_train), batch_size=self.batch_size, shuffle=shuffle)
+        train_iter = BatchIterator((x_train, y_train),
+                                   batch_size=self.batch_size,
+                                   shuffle_flag=shuffle)
         valid_flag = False
 
         # if there are valid data, define valid_model and calc valid_loss
         if x_valid is not None and y_valid is not None:
             if valid_mode == 'error_rate' and self.pred_function is None:
                 self.pred_function = self.function('pred')
-                valid_iter = BatchIterator(x_valid, batch_size=self.batch_size, shuffle=False)
+                valid_iter = BatchIterator(x_valid,
+                                           batch_size=self.batch_size,
+                                           shuffle_flag=False)
             elif valid_mode == 'loss' and self.test_function is None:
                 self.test_function = self.function('test', y_valid[0].ndim)
-                valid_iter = BatchIterator((x_valid, y_valid), batch_size=self.batch_size, shuffle=False)
+                valid_iter = BatchIterator((x_valid, y_valid),
+                                           batch_size=self.batch_size,
+                                           shuffle_flag=False)
             else:
-                raise Exception('valid_mode error: valid_mode must be "error_rate" or "loss".')
+                raise Exception('valid_mode error: valid_mode must be '
+                                '"error_rate" or "loss".')
             best_valid_loss = np.inf
             valid_flag = True
 
@@ -203,19 +215,23 @@ class Sequential(object):
         # training while i < nb_epoch
         while i < self.nb_epoch:
             i += 1
+            train_loss += [np.mean(run(train_iter, self.train_function,
+                                       self.iprint))]
             if self.iprint:
-                print 'epoch:', i
-            train_loss += [np.mean(run(train_iter, self.train_function, iprint=True))]
-            sys.stdout.write(', train_loss:{0:.5f}'.format(train_loss[-1]))
+                print 'epoch:{0}'.format(i)
+                sys.stdout.write(', train_loss:{0:.5f}'.format(train_loss[-1]))
             # if there are valid data, calc valid_error
             if valid_flag:
                 if valid_mode == 'error_rate':
                     pred = self.predict(valid_iter)
-                    this_valid_loss = (1.0 * num_of_error(y_valid, pred)) / y_valid.shape[0]
+                    this_valid_loss = ((1.0 * num_of_error(y_valid, pred))
+                                       / y_valid.shape[0])
                 elif valid_mode == "loss":
-                    this_valid_loss = self.__test(valid_iter, self.test_function)
+                    this_valid_loss = self.__test(valid_iter,
+                                                  self.test_function)
                 if self.iprint:
-                    sys.stdout.write(', valid_{0}:{1:.5f}'.format(valid_mode, this_valid_loss))
+                    sys.stdout.write(', valid_{0}:{1:.5f}'
+                                     .format(valid_mode, this_valid_loss))
 
                 # if this_valid_loss is better than best_valid_loss
                 if this_valid_loss < best_valid_loss:
@@ -228,7 +244,8 @@ class Sequential(object):
         end_time = timeit.default_timer()
         if self.iprint:
             if valid_flag:
-                print('Training complete. Best validation score of {0}'.format(best_valid_loss))
+                print('Training complete. Best validation score of {0}'
+                      .format(best_valid_loss))
             else:
                 print('Training complete.')
             print (' ran for {0:.2f}m'.format((end_time - start_time) / 60.))
@@ -271,7 +288,8 @@ class Sequential(object):
             if pred.shape[0] + output[-1].shape[0] == n_samples:
                 pred = np.vstack((pred, output[-1]))
             else:
-                pred = np.vstack((pred, output[-1][-(n_samples - pred.shape[0]):]))
+                pred = np.vstack((pred,
+                                  output[-1][-(n_samples - pred.shape[0]):]))
 
         if self.layers[-1].n_out == 1:
             pred = pred.ravel()
@@ -319,26 +337,33 @@ class Model(object):
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-        self.set_input_shape()
+        self.set_shape()
         self.set_rng(rng)
         self.set_params()
 
     def set_params(self):
-        paramslayers = filter(lambda x: hasattr(x, 'params'), map(lambda x: getattr(self, x), self.__dict__.keys()))
-        map(lambda x: x.set_params(), filter(lambda x: hasattr(x, 'set_params'), paramslayers))
-        self.params = reduce(lambda x, y: x + y, map(lambda x: x.params, paramslayers))
+        print
+        paramslayers = filter(lambda x: hasattr(x, 'params'),
+                              self.__dict__.values())
+        map(lambda x: x.set_params(),
+            filter(lambda x: hasattr(x, 'set_params'), paramslayers))
+        self.params = reduce(lambda x, y: x + y,
+                             map(lambda x: x.params, paramslayers))
 
-    def set_input_shape(self):
-        layers = filter(lambda x: hasattr(x, 'set_input_shape'), map(lambda x: getattr(self, x), self.__dict__.keys()))
-        map(lambda x: x.set_input_shape(x.n_in), layers)
+    def set_shape(self):
+        layers = filter(lambda x: hasattr(x, 'set_shape'),
+                        self.__dict__.values())
+        map(lambda x: x.set_shape(x.n_in), layers)
 
     def set_rng(self, rng):
-        rnglayers = filter(lambda x: hasattr(x, 'set_rng'), map(lambda x: getattr(self, x), self.__dict__.keys()))
+        rnglayers = filter(lambda x: hasattr(x, 'set_rng'),
+                           self.__dict__.values())
         map(lambda x: x.set_rng(rng), rnglayers)
 
     def updates(self, cost, opt):
         updates = opt.get_update(cost, self.params)
-        updatelayers = filter(lambda x: hasattr(x, 'updates'), map(lambda x: getattr(self, x), self.__dict__.keys()))
+        updatelayers = filter(lambda x: hasattr(x, 'updates'),
+                              self.__dict__.values())
         for layer in updatelayers:
             updates += layer.updates
         return updates

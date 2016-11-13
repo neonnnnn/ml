@@ -1,6 +1,6 @@
 import numpy as np
 import load_mnist
-from ml.deeplearning.layers import Dense, Activation, Conv, Pool, Flatten
+from ml.deeplearning.layers import Dense, Activation, Conv, Pool, Flatten, BatchNormalization
 from ml.deeplearning.optimizers import SGD
 from ml.deeplearning.objectives import MulticlassLogLoss
 from ml.deeplearning.models import Sequential
@@ -18,10 +18,12 @@ if __name__ == '__main__':
     clf = Sequential((1, 28, 28), rng=rng)
 
     clf.add(Conv(32, 5, 5))
+    clf.add(BatchNormalization())
     clf.add(Activation("relu"))
     clf.add(Pool())
 
     clf.add(Conv(32, 5, 5))
+    clf.add(BatchNormalization())
     clf.add(Activation("relu"))
     clf.add(Pool())
 

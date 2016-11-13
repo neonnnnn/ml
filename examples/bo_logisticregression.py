@@ -19,33 +19,36 @@ if __name__ == '__main__':
         clf = Sequential(784, rng=rng, iprint=False)
         clf.add(Dense(10))
         clf.add(Activation('softmax'))
-        clf.compile(loss=loss, opt=opt, batch_size=20, nb_epoch=100)
+        clf.compile(loss=loss, opt=opt, batch_size=100, nb_epoch=100)
 
         return clf
 
     def eval(clf, train_x, train_y, valid_x, valid_y):
         clf.fit(train_x, train_y)
-        score = clf.score(valid_x, valid_y)
+        score = clf.accuracy(valid_x, valid_y)
         return score
 
     intervals = [[0.001, 1.], [0.01, 1.], [0.001, 0.01]]
     grid = [1000, 100, 10]
 
-    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid, opt_times=200, acq="EI")
+    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid,
+                opt_times=200, acq="EI")
     params, values = opt.fit(x_train, y_train, x_test, y_test)
     # params, values = opt.fit(x_train, y_train, x_test, y_test)
     np.savetxt("bo_logistic_params_EI_1.txt", params)
     np.savetxt("bo_logistic_values_EI_1.txt", values)
     del opt
 
-    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid, opt_times=200, acq="UCB")
+    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid,
+                opt_times=200, acq="UCB")
     params, values = opt.fit(x_train, y_train, x_test, y_test)
     # params, values = opt.fit(x_train, y_train, x_test, y_test)
     np.savetxt("bo_logistic_params_UCB_1.txt", params)
     np.savetxt("bo_logistic_values_UCB_1.txt", values)
     del opt
 
-    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid, opt_times=200, acq="MI")
+    opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid,
+                opt_times=200, acq="MI")
     params, values = opt.fit(x_train, y_train, x_test, y_test)
     # params, values = opt.fit(x_train, y_train, x_test, y_test)
     np.savetxt("bo_logistic_params_MI_1.txt", params)

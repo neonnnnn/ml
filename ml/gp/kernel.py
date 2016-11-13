@@ -30,7 +30,7 @@ class SE(object):
         n = x1.shape[0]
         grad_r2 = np.zeros((self.dim, n, n))
         for i in range(1, self.dim):
-            grad_r2[i] = theta[i] * (x1[:, i-1] - (x1[:, i-1])[:, np.newaxis]) ** 2
+            grad_r2[i] = (x1[:, i-1]-(x2[:, i-1])[:, np.newaxis])**2
         grad_r2[0]
 
         r2 = calc_r2(x1, x2, theta[1:])
@@ -54,7 +54,7 @@ class Matern52(object):
         r2 = calc_r2(x1, x2, theta[1:])
 
         r = np.sqrt(r2)
-        return theta[0] * (1 + np.sqrt(5) * r + 5. * r2 / 3) * np.exp(-np.sqrt(5) * r)
+        return theta[0] * (1+np.sqrt(5)*r+5.*r2/3.) * np.exp(-np.sqrt(5)*r)
 
     def calc_kernel_diag(self, x1):
         return np.ones(x1.shape[0]) * self.theta[0]
@@ -63,14 +63,14 @@ class Matern52(object):
         n = x1.shape[0]
         grad_r2 = np.zeros((self.dim, n, n))
         for i in range(1, self.dim):
-            grad_r2[i] = theta[i] * (x1[:, i-1] - (x1[:, i-1])[:, np.newaxis]) ** 2
+            grad_r2[i] = (x1[:, i-1]-(x2[:, i-1])[:, np.newaxis]) ** 2
 
         r2 = calc_r2(x1, x2, theta[1:])
         r = np.sqrt(r2)
         inv_r = 1. / np.where(r != 0, r, np.inf)
         sqrt5 = np.sqrt(5)
-        grad = (-0.5 * sqrt5 * grad_r2 * inv_r * (sqrt5 * r + 5. * r2 / 3.) + 5. * grad_r2 / 3.)
-        grad[0] = (1 + np.sqrt(5) * r + 5. * r2 / 3)
+        grad = (-0.5*sqrt5*grad_r2*inv_r*(sqrt5*r+5.*r2/3.) + 5.*grad_r2/3.)
+        grad[0] = 1 + np.sqrt(5)*r + 5.*r2/3.
 
         return theta[0] * grad * np.exp(-sqrt5 * r)
 

@@ -8,8 +8,9 @@ import sys
 
 
 class BO(object):
-    def __init__(self, make, eval, intervals, pred=None, grid=1000, fold_num=10, opt_times=100, kernel="Matern52", acq="MI", acqparams=None,
-                 candidates=None, values=None, params=None):
+    def __init__(self, make, eval, intervals, pred=None, grid=1000,
+                 fold_num=10, opt_times=100, kernel="Matern52", acq="MI",
+                 acqparams=None, candidates=None, values=None, params=None):
         self.make = make
         self.eval = eval
         self.intervals = intervals
@@ -39,10 +40,14 @@ class BO(object):
 
         if self.candidates is None:
             if type(self.grid) == int:
-                grid_list = np.arange(self.grid, dtype=np.float) / self.grid
-                self.candidates = np.array(list(itertools.product(grid_list, repeat=len(self.intervals))))
+                grid_list = np.arange(self.grid, dtype=np.float)/self.grid
+                cand_list = list(itertools.product(grid_list,
+                                                   repeat=len(self.intervals)))
+                self.candidates = np.array(cand_list)
             else:
-                grid_list = [np.arange(self.grid[i], dtype=np.float) / self.grid[i] for i in xrange(len(self.intervals))]
+                grid_list = [(np.arange(self.grid[i], dtype=np.float)
+                              / self.grid[i])
+                             for i in xrange(len(self.intervals))]
                 self.candidates = np.array(list(itertools.product(*grid_list)))
 
         self.intervals = np.array(self.intervals)
@@ -73,11 +78,14 @@ class BO(object):
                 kf = KFold(train_x.shape[0], n_folds=self.fold_num)
                 for train_idx, valid_idx in kf:
                     clf = self.make(map_to_origin(next, self.intervals))
-                    value += self.eval(clf, train_x[train_idx], train_y[train_idx], train_x[valid_idx], train_y[valid_idx])
+                    value += self.eval(clf, train_x[train_idx],
+                                       train_y[train_idx], train_x[valid_idx],
+                                       train_y[valid_idx])
                     del clf
                 if pred_flag:
                     clf = self.make(map_to_origin(next, self.intervals))
-                    dammy = self.eval(clf, train_x, train_y, train_x[valid_idx], train_y[valid_idx])
+                    dammy = self.eval(clf, train_x, train_y,
+                                      train_x[valid_idx], train_y[valid_idx])
                     pred_y[i] = self.pred(clf, test_x)
                     del clf
                 value /= (1.0 * self.fold_num)
@@ -91,12 +99,10 @@ class BO(object):
                 self.values = np.append(self.values, value)
                 if hasattr(self.acquison, "best"):
                     self.acquison.best = np.max(self.values)
-
                 gaussian_process = gp.GP(kernel_name=self.kernel, iprint=False)
                 gaussian_process.fit(self.params, self.values)
                 mean, var = gaussian_process.decision_function(self.candidates)
                 del gaussian_process
-
                 next_idx = self.acquison.calc(mean, var)
                 next = self.candidates[next_idx]
 
@@ -109,7 +115,8 @@ class BO(object):
         if not pred_flag:
             return map_to_origin(self.params, self.intervals), self.values
         else:
-            return map_to_origin(self.params, self.intervals), self.values, pred_y
+            return (map_to_origin(self.params, self.intervals),
+                    self.values, pred_y)
 
 
 def map_to_origin(x, intervals):

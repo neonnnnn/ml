@@ -4,7 +4,9 @@ import sys
 
 
 class SVC(object):
-    def __init__(self, C, kernel_name='linear', params=None, eps=1e-4, tau=1e-12, max_iter=10000, wss='WSS3', sparse=False, iprint=True):
+    def __init__(self, C, kernel_name='linear', params=None, eps=1e-4,
+                 tau=1e-12, max_iter=10000, wss='WSS3', sparse=False,
+                 iprint=True):
         self.C = C
         if sparse:
             self.K = kernel.get_kernel("Sparse" + kernel_name)(params)
@@ -26,7 +28,8 @@ class SVC(object):
         self.flag = False
 
     def decision_function(self, x):
-        return (self.K.calc_kernel(self.support_vector, x)).dot(self.alpha_times_y) + self.bias
+        output = (self.K.calc(self.sv, x)).dot(self.alpha_times_y)
+        return + self.bias
 
     def predict(self, x):
         return np.sign(self.decision_function(x))
@@ -42,16 +45,17 @@ class SVC(object):
         y1 = y[idx1]
         y2 = y[idx2]
         if not (idx1 in self.cache):
-            self.cache[idx1] = y * y1 * (self.K.calc_kernel(x, x[idx1])).ravel()
+            self.cache[idx1] = y * y1 * (self.K.calc(x, x[idx1])).ravel()
 
         if not (idx2 in self.cache):
-            self.cache[idx2] = y * y2 * (self.K.calc_kernel(x, x[idx2])).ravel()
+            self.cache[idx2] = y * y2 * (self.K.calc(x, x[idx2])).ravel()
 
         # convergence test
         if minus_y_times_grad[idx1] - minus_y_times_grad[idx2] < self.eps:
             self.flag = True
 
-        a = (self.cache[idx1])[idx1] + (self.cache[idx2])[idx2] - 2 * y1 * y2 * (self.cache[idx1])[idx2]
+        a = ((self.cache[idx1])[idx1] + (self.cache[idx2])[idx2]
+             - 2 * y1 * y2 * (self.cache[idx1])[idx2])
         if a <= 0:
             a = self.tau
         d = (minus_y_times_grad[idx1] - minus_y_times_grad[idx2]) / a
@@ -65,13 +69,13 @@ class SVC(object):
         y1 = y[idx1]
 
         if not (idx1 in self.cache):
-            self.cache[idx1] = y * y1 * self.K.calc_kernel(x, x[idx1]).ravel()
+            self.cache[idx1] = y * y1 * self.K.calc(x, x[idx1]).ravel()
         Qii = self.cache[idx1]
 
         newkeys = t[self.keys[t]]
         if len(newkeys) > 0:
             self.keys[newkeys] = False
-            self.cache2[newkeys] = self.K.calc_kernel_same(x[newkeys])
+            self.cache2[newkeys] = self.K.calc_same(x[newkeys])
         Qtt = self.cache2[t]
 
         ait = Qii[idx1] + Qtt - 2 * y1 * y[t] * Qii[t]
@@ -86,7 +90,7 @@ class SVC(object):
             self.flag = True
 
         if not (idx2 in self.cache):
-            self.cache[idx2] = y * y[idx2] * self.K.calc_kernel(x, x[idx2]).ravel()
+            self.cache[idx2] = y * y[idx2] * self.K.calc(x, x[idx2]).ravel()
 
         return idx1, idx2, bit[t_idx] / ait[t_idx]
 
@@ -135,7 +139,8 @@ class SVC(object):
         self.support_vector = x[support_vector_idx]
         self.alpha = self.alpha[support_vector_idx]
         self.alpha_times_y = self.alpha * y[support_vector_idx]
-        self.bias = np.average(-y[support_vector_idx] * grad_f_a[support_vector_idx])
+        self.bias = np.average(-y[support_vector_idx]
+                               * grad_f_a[support_vector_idx])
 
     def fit(self, x, y):
         if self.iprint:
@@ -147,10 +152,11 @@ class SVC(object):
         for i in range(self.max_iter):
             if self.iprint:
                 if i % (self.max_iter / 1000):
-                    sys.stdout.write("\r Iteration:%d/%d" % (i+1, self.max_iter))
+                    sys.stdout.write("\r Iter:%d/%d" % (i+1, self.max_iter))
                     sys.stdout.flush()
             # select working set
-            idx1, idx2, d = self.WSS(grad_f_a, up_idx.nonzero()[0], low_idx.nonzero()[0], x, y)
+            idx1, idx2, d = self.WSS(grad_f_a, up_idx.nonzero()[0],
+                                     low_idx.nonzero()[0], x, y)
 
             y1 = y[idx1]
             y2 = y[idx2]
@@ -160,14 +166,16 @@ class SVC(object):
             alpha2_old = self.alpha[idx2]
 
             # update alpha_1 and alpha_2
-            alpha1_new, alpha2_new = self.calc_alpha(y1, y2, alpha1_old, alpha2_old, d)
+            alpha1_new, alpha2_new = self.calc_alpha(y1, y2, alpha1_old,
+                                                     alpha2_old, d)
 
             # update alpha
             self.alpha[idx1] = alpha1_new
             self.alpha[idx2] = alpha2_new
 
             # update grad_f_a
-            grad_f_a += Qii * (alpha1_new - alpha1_old) + Qjj * (alpha2_new - alpha2_old)
+            grad_f_a += (Qii * (alpha1_new - alpha1_old)
+                         + Qjj * (alpha2_new - alpha2_old))
 
             # update up_idx
             up_idx[idx1] = self.check_up_idx(y1, alpha1_new)

@@ -20,7 +20,8 @@ if __name__ == '__main__':
 
     # Set parameters
     def make(params):
-        clf = svc.SVC(C=params[0], params=[params[1]], kernel_name='rbf', max_iter=10000, wss='wss3', iprint=False)
+        clf = svc.SVC(C=params[0], params=[params[1]], kernel_name='rbf',
+                      max_iter=10000, wss='wss3', iprint=False)
         return clf
 
     def eval(clf, train_x, train_y, valid_x, valid_y):
@@ -31,7 +32,8 @@ if __name__ == '__main__':
     y = np.hstack((y_train, y_test))
     print y.shape
     intervals = [[0.5, 10], [0.01, 0.5]]
-    opt = bo.BO(make=make, eval=eval, intervals=intervals, acqparams=1e-6, fold_num=5, opt_times=20)
+    opt = bo.BO(make=make, eval=eval, intervals=intervals, acqparams=1e-6,
+                fold_num=5, opt_times=20)
     params, values = opt.fit(x, y)
     #params, values = opt.fit(x_train, y_train, x_test, y_test)
     np.savetxt("bo_svm_params.txt", params)

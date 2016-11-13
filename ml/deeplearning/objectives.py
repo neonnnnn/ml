@@ -41,9 +41,12 @@ class Regularization(object):
 class CrossEntropy(Loss):
     def calc(self, y, output):
         if y.ndim == 1:
-            loss = -(y * T.log(T.clip(output.ravel(), 1e-20, 1)) + (1 - y) * T.log(T.clip(1 - output.ravel(), 1e-20, 1)))
+            loss = -(y * T.log(T.clip(output.ravel(), 1e-20, 1))
+                     + (1 - y) * T.log(T.clip(1 - output.ravel(), 1e-20, 1)))
         else:
-            loss = -T.sum((y * T.log(T.clip(output, 1e-20, 1)) + (1 - y) * T.log(T.clip(1 - output, 1e-20, 1))), axis=1)
+            loss = -T.sum((y * T.log(T.clip(output, 1e-20, 1))
+                           + (1 - y) * T.log(T.clip(1 - output, 1e-20, 1))),
+                          axis=1)
         if self.mode:
             loss = T.mean(loss)
         else:
@@ -129,5 +132,6 @@ class KLDivergenceRegularization(Regularization):
         self.rho = rho
 
     def calc(self, layers):
-        reg = T.sum(self.rho * T.log(T.clip(self.rho / layers[self.idx].W), 1e-20, 1))
+        reg = T.sum(self.rho * T.log(T.clip(self.rho / layers[self.idx].W,
+                                            1e-20, 1)))
         return self.weight * reg

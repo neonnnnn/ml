@@ -16,7 +16,7 @@ if __name__ == '__main__':
     opt = SGD(0.01, 0.9)
     clf = Sequential(784, rng=rng, iprint=True)
 
-    clf.add(Dropout(0.2))
+    #clf.add(Dropout(0.2))
     for i in range(1):
         clf.add(Dense(500))
         clf.add(Activation("relu"))

@@ -1,3 +1,4 @@
+
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import theano
@@ -15,7 +16,7 @@ class Layer(object):
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         pass
 
     @abstractmethod
@@ -27,7 +28,8 @@ class Layer(object):
 
 
 class Dense(Layer):
-    def __init__(self, n_out, n_in=None, init='glorot_uniform', rng=None, bias=True):
+    def __init__(self, n_out, n_in=None, init='glorot_uniform',
+                 rng=None, bias=True):
         self.n_in = n_in
         self.n_out = n_out
         self.rng = rng
@@ -40,19 +42,22 @@ class Dense(Layer):
     def set_rng(self, rng):
         self.rng = rng
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
         if self.W is not None:
             if self.W.get_value().shape != (self.n_in, self.n_out):
-                raise ValueError('W_values.shape must be (n_in, n_out)(i.e. {0})'.format((self.n_in, self.n_out)))
+                raise ValueError('W_values.shape must be '
+                                 '(n_in, n_out)(i.e. {0})'
+                                 .format((self.n_in, self.n_out)))
 
     def set_params(self):
         if self.W is None:
-            W_values = np.asarray(self.init(self, (self.n_in, self.n_out)), dtype=theano.config.floatX)
+            W_values = np.asarray(self.init(self, (self.n_in, self.n_out)),
+                                  dtype=theano.config.floatX)
             self.W = theano.shared(value=W_values, name='W', borrow=True)
-
-        self.params = [self.W]
-        if self.bias:
+        if not self.bias:
+            self.params = [self.W]
+        else:
             if self.b is None:
                 b_values = np.zeros((self.n_out,), dtype=theano.config.floatX)
                 self.b = theano.shared(value=b_values, name='b', borrow=True)
@@ -63,11 +68,14 @@ class Dense(Layer):
             raise TypeError('type(W_values) must be numpy.ndarray.')
 
         if W_values.dtype != theano.config.floatX:
-            raise ValueError('W_values.dtype must be {0}'.format(theano.config.floatX))
+            raise ValueError('W_values.dtype must be {0}'
+                             .format(theano.config.floatX))
 
         if self.n_in is not None:
             if W_values.shape != (self.n_in, self.n_out):
-                raise ValueError('W_values.shape must be (n_in, n_out)(i.e. {0})'.format((self.n_in, self.n_out)))
+                raise ValueError('W_values.shape must be '
+                                 '(n_in, n_out)(i.e. {0})'
+                                 .format((self.n_in, self.n_out)))
 
         if self.W is not None:
             self.W.set_value(W_values)
@@ -79,10 +87,12 @@ class Dense(Layer):
             raise TypeError('type(b_values')
 
         if b_values.dtype != theano.config.floatX:
-            raise ValueError('W_values.dtype must be {0}'.format(theano.config.floatX))
+            raise ValueError('W_values.dtype must be {0}'
+                             .format(theano.config.floatX))
 
         if b_values.shape != (self.n_out, ):
-            raise ValueError('b_values.shape must be (n_out, ), i.e. {0}.'.format((self.n_out, )))
+            raise ValueError('b_values.shape must be (n_out, ), i.e. {0}.'
+                             .format((self.n_out,)))
 
         if self.b is not None:
             self.b.set_value(b_values)
@@ -100,19 +110,20 @@ class Activation(Layer):
         self.afunc = activations.get_activation(activation_name)
         self.act_param = args
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
         self.n_out = n_in
 
     def forward(self, x, train=True):
-        if len(inspect.getargspec(self.afunc)[0]) > 1 and len(self.act_param) != 0:
+        if inspect.getargspec(self.afunc)[0] and self.act_param:
             return self.afunc(x, self.act_param)
         else:
             return self.afunc(x)
 
 
 class BatchNormalization(Layer):
-    def __init__(self, n_in=None, eps=1e-5, trainable=True, momentum=0.9, moving=True):
+    def __init__(self, n_in=None, eps=1e-5, trainable=True, momentum=0.9,
+                 moving=True):
         self.n_in = n_in
         self.n_out = n_in
         self.mean_inf = None
@@ -120,63 +131,87 @@ class BatchNormalization(Layer):
         self.gamma = 1.0
         self.beta = 0.0
         self.params = None
-        self.eps = eps
+        self.eps = theano.shared(np.asarray(eps, dtype=theano.config.floatX),
+                                 borrow=True)
         self.momentum = momentum
         self.trainable = trainable
         self.moving = moving
         self.updates = None
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
         self.n_out = n_in
 
     def set_params(self):
-        if type(self.n_in) == int:
+        if isinstance(self.n_in, int):
             shape = self.n_in
         else:
             shape = self.n_in[0]
         if self.moving:
-            self.mean_inf = theano.shared(value=np.zeros(shape, dtype=theano.config.floatX), borrow=True)
-            self.var_inf = theano.shared(value=np.zeros(shape, dtype=theano.config.floatX), borrow=True)
+            self.mean_inf = theano.shared(np.zeros(shape,
+                                                   dtype=theano.config.floatX),
+                                          borrow=True)
+            self.var_inf = theano.shared(np.zeros(shape,
+                                                  dtype=theano.config.floatX),
+                                         borrow=True)
 
-        self.gamma = theano.shared(value=np.ones(shape, dtype=theano.config.floatX), borrow=True)
-        self.beta = theano.shared(value=np.zeros(shape, dtype=theano.config.floatX), borrow=True)
+        self.gamma = theano.shared(np.ones(shape, dtype=theano.config.floatX),
+                                   borrow=True)
+        self.beta = theano.shared(np.zeros(shape, dtype=theano.config.floatX),
+                                  borrow=True)
 
         if self.trainable:
             self.params = [self.gamma, self.beta]
         else:
             self.params = []
 
-        self.momentum = theano.shared(np.asarray(self.momentum, dtype=theano.config.floatX), borrow=True)
+        self.momentum = theano.shared(np.asarray(self.momentum,
+                                                 dtype=theano.config.floatX),
+                                      borrow=True)
 
     def forward(self, x, train=True):
         if train or not self.moving:
             if x.ndim == 2:
                 mean = T.mean(x, axis=0)
                 var = T.var(x, axis=0)
-                output = self.gamma * (x - mean) / T.sqrt(var + self.eps) + self.beta
+                output = self.gamma * (x - mean) / T.sqrt(var + self.eps)
+                output += self.beta
             elif x.ndim == 4:
+                gamma = self.gamma.dimshuffle('x', 0, 'x', 'x')
+                beta = self.beta.dimshuffle('x', 0, 'x', 'x')
                 mean = T.mean(x, axis=(0, 2, 3))
                 var = T.var(x, axis=(0, 2, 3))
-                output = self.gamma.dimshuffle('x', 0, 'x', 'x') * (x - mean.reshape((1, x.shape[1], 1, 1)))
-                output /= T.sqrt(var + self.eps).reshape((1, x.shape[1], 1, 1)) + self.beta.dimshuffle('x', 0, 'x', 'x')
+                output = gamma*(x - mean.reshape((1, x.shape[1], 1, 1)))
+                output /= T.sqrt(var).reshape((1, x.shape[1], 1, 1)) + self.eps
+                output += beta
             else:
-                raise ValueError('input.shape must be (batch_size, dim) or (batch_size, filter_num, h, w).')
+                raise ValueError('input.shape must be (batch_size, dim) '
+                                 'or (batch_size, filter_num, h, w).')
 
             if self.moving:
                 bs = x.shape[0].astype(theano.config.floatX)
-                self.updates = [(self.mean_inf, self.momentum * self.mean_inf + (1 - self.momentum) * mean),
-                                (self.var_inf, self.momentum * self.var_inf + (1 - self.momentum) * var * bs / (bs - 1.))]
+                self.updates = \
+                    [(self.mean_inf,
+                      self.momentum*self.mean_inf + (1-self.momentum)*mean),
+                     (self.var_inf,
+                      (self.momentum*self.var_inf
+                       + (1-self.momentum)*var*bs/(bs - 1.)))]
             else:
                 self.updates = []
         else:
             if x.ndim == 2:
-                output = self.gamma * (x - self.mean_inf) / T.sqrt(self.var_inf + self.eps) + self.beta
+                output = self.gamma * (x - self.mean_inf)
+                output /= T.sqrt(self.var_inf) +self.eps
+                output += self.beta
             elif x.ndim == 4:
-                output = self.gamma.dimshuffle('x', 0, 'x', 'x') * (x - self.mean_inf.dimshuffle('x', 0, 'x', 'x'))
-                output /= T.sqrt(self.var_inf + self.eps).dimshuffle('x', 0, 'x', 'x') + self.beta.dimshuffle('x', 0, 'x', 'x')
+                gamma = self.gamma.dimshuffle('x', 0, 'x', 'x')
+                mean_inf = self.mean_inf.dimshuffle('x', 0, 'x', 'x')
+                var_inf = self.var_inf.dimshuffle('x', 0, 'x', 'x')
+                beta = self.beta.dimshuffle('x', 0, 'x', 'x')
+                output = gamma*(x-mean_inf)/(T.sqrt(var_inf)+self.eps) + beta
             else:
-                raise ValueError('input.shape must be (batch_size, dim) or (batch_size, filter_num, h, w).')
+                raise ValueError('input.shape must be (batch_size, dim) '
+                                 'or (batch_size, filter_num, h, w).')
         return output
 
 
@@ -190,21 +225,24 @@ class Dropout(Layer):
     def set_rng(self, rng):
         self.rng = rng
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
         self.n_out = n_in
 
     def forward(self, x, train=True):
         if train:
-            srng = T.shared_randomstreams.RandomStreams(self.rng.randint(999999))
-            output = x * srng.binomial(size=x.shape, n=1, p=1 - self.p, dtype=x.dtype)
+            srng = T.shared_randomstreams.RandomStreams(self.rng.randint(9999))
+            output = x * srng.binomial(size=x.shape, n=1,
+                                       p=1 - self.p, dtype=x.dtype)
         else:
             output = x * (1 - self.p)
         return output
 
 
 class Conv(Layer):
-    def __init__(self, nb_filter, nb_height, nb_width, n_in=None, n_out=None, border_mode='valid', init='he_conv_normal', subsample=(1, 1), rng=None):
+    def __init__(self, nb_filter, nb_height, nb_width, n_in=None, n_out=None,
+                 border_mode='valid', init='he_conv_normal',
+                 subsample=(1, 1), rng=None):
         self.n_in = n_in
         self.n_out = n_out
         self.rng = rng
@@ -219,7 +257,7 @@ class Conv(Layer):
     def set_rng(self, rng):
         self.rng = rng
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
         self.filter_shape[1] = self.n_in[0]
         self.filter_shape = tuple(self.filter_shape)
@@ -236,23 +274,30 @@ class Conv(Layer):
                 raise ValueError("border_mode must be >= 0.")
             pad = [self.border_mode, self.border_mode]
         else:
-            raise ValueError('invalid border_mode {}, '
-                             'which must be either "valid", "full", "half", an integer or a pair of integers'.format(self.border_mode))
-        fmap_h = (self.n_in[1] - self.filter_shape[2] + 2 * pad[0]) // self.subsample[0] + 1
-        fmap_w = (self.n_in[2] - self.filter_shape[3] + 2 * pad[1]) // self.subsample[1] + 1
+            raise ValueError('invalid border_mode {}, which must be either '
+                             '"valid", "full", "half", an integer '
+                             'or a pair of integers'.format(self.border_mode))
+        fmap_h = ((self.n_in[1] - self.filter_shape[2] + 2 * pad[0])
+                  // self.subsample[0] + 1)
+        fmap_w = ((self.n_in[2] - self.filter_shape[3] + 2 * pad[1])
+                  // self.subsample[1] + 1)
 
         if fmap_h <= 0 or fmap_w <= 0:
-            raise ValueError('Output height or width must be > 0, but now height = {0}, width={1}.'.format(fmap_h, fmap_w))
+            raise ValueError('Output height or width must be > 0, '
+                             'but now height = {0}, width={1}.'
+                             .format(fmap_h, fmap_w))
 
         self.n_out = (self.filter_shape[0], fmap_h, fmap_w)
 
     def set_params(self):
         if self.W is None:
-            W_values = np.asarray(self.init(self, self.filter_shape), dtype=theano.config.floatX)
+            W_values = np.asarray(self.init(self, self.filter_shape),
+                                  dtype=theano.config.floatX)
             self.W = theano.shared(value=W_values, name='W', borrow=True)
 
         if self.b is None:
-            b_values = np.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
+            b_values = np.zeros((self.filter_shape[0],),
+                                dtype=theano.config.floatX)
             self.b = theano.shared(value=b_values, name='b', borrow=True)
 
         self.params = [self.W, self.b]
@@ -262,11 +307,14 @@ class Conv(Layer):
             raise TypeError('type(W_values) must be numpy.ndarray.')
 
         if W_values.dtype != theano.config.floatX:
-            raise ValueError('W_values.dtype must be {0}'.format(theano.config.floatX))
+            raise ValueError('W_values.dtype must be {0}'
+                             .format(theano.config.floatX))
 
         if self.n_in is not None:
             if W_values.shape != self.filter_shape:
-                raise ValueError('W_values.shape must be (nb_filter, n_in[0], nb_height, nb_width), i.e. {0}.'.format(self.filter_shape))
+                raise ValueError('W_values.shape must be (nb_filter, n_in[0], '
+                                 'nb_height, nb_width), i.e. {0}.'
+                                 .format(self.filter_shape))
 
         if self.W is not None:
             self.W.set_value(W_values)
@@ -278,10 +326,12 @@ class Conv(Layer):
             raise TypeError('type(b_values) must be numpy.ndarry.')
 
         if b_values.shape != self.filter_shape[0]:
-            raise ValueError('b_balues.shape must be (nb_filter,), i.e. {0}.'.format((self.filter_shape[0],)))
+            raise ValueError('b_balues.shape must be (nb_filter,), i.e. {0}.'
+                             .format((self.filter_shape[0],)))
 
         if b_values.dtype != theano.config.floatX:
-            raise ValueError('b_values.dtype must be {0}.'.format(theano.config.floatX))
+            raise ValueError('b_values.dtype must be {0}.'
+                             .format(theano.config.floatX))
 
         if self.b is not None:
             self.b.set_value(b_values)
@@ -300,19 +350,22 @@ class Conv(Layer):
 
 
 class Deconv(Conv):
-    def __init__(self, nb_filter, nb_height, nb_width, n_out, n_in=None, border_mode='adapt', init='he_conv_normal', subsample=(1, 1), rng=None):
-        super(Deconv, self).__init__(nb_filter, nb_height, nb_width, n_in, n_out, border_mode, init, subsample, rng)
+    def __init__(self, nb_filter, nb_height, nb_width, n_out, n_in=None,
+                 border_mode='adapt', init='he_conv_normal',
+                 subsample=(1, 1), rng=None):
+        super(Deconv, self).__init__(nb_filter, nb_height, nb_width, n_in,
+                                     n_out, border_mode, init, subsample, rng)
 
     def set_rng(self, rng):
         self.rng = rng
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
         self.filter_shape[1] = self.n_in[0]
         self.filter_shape = tuple(self.filter_shape)
 
         if self.n_out[0] != self.filter_shape[0]:
-            raise ValueError("output_shape[0] must be equal nb_filter.")
+            raise ValueError('output_shape[0] must be equal nb_filter.')
 
         if self.border_mode == 'valid':
             pad = [0, 0]
@@ -324,36 +377,49 @@ class Deconv(Conv):
             pad = self.border_mode
         elif isinstance(self.border_mode, int):
             if self.border_mode < 0:
-                raise ValueError("border_mode must be >= 0.")
+                raise ValueError('border_mode must be >= 0.')
             pad = [self.border_mode, self.border_mode]
-        elif self.border_mode == "adapt":
+        elif self.border_mode == 'adapt':
             pad = [0, 0]
-            inf = np.array(self.subsample) * (np.array(n_in[1:]) - 1) + np.array(self.filter_shape[2:])
+            inf = np.array(self.subsample) * (np.array(n_in[1:]) - 1) \
+                  + np.array(self.filter_shape[2:])
             sup = inf + np.array(self.subsample) - 1
             if self.n_out[1] > sup[0]:
-                raise ValueError('border_mode is "adapt" but output_shape[1] is impossible. filter_size or subsample must be larger.')
+                raise ValueError('border_mode is "adapt" but output_shape[1] '
+                                 'is impossible. filter_size or subsample '
+                                 'must be larger.')
             elif self.n_out[2] > sup[1]:
-                raise ValueError('border_mode is "adapt" but output_shape[2] is impossible. filter_size or subsample must be larger.')
+                raise ValueError('border_mode is "adapt" but output_shape[2] '
+                                 'is impossible. filter_size or subsample '
+                                 'must be larger.')
             elif self.n_out[1] < inf[0] & self.n_out[2] < inf[1]:
                 pad[0] = (inf[0] - self.n_out[1]) // 2
                 pad[1] = (inf[1] - self.n_out[2]) // 2
                 self.border_mode = pad
         else:
             raise ValueError('invalid border_mode {}, '
-                             'which must be either "valid", "full", "half", an integer or a pair of integers'.format(self.border_mode))
+                             'which must be either "valid", "full", "half", '
+                             'an integer or a pair of integers'
+                             .format(self.border_mode))
 
-        inf = np.array(self.subsample) * (np.array(n_in[1:]) - 1) + np.array(self.filter_shape[2:]) - 2 * np.array(pad)
+        inf = np.array(self.subsample) * (np.array(n_in[1:]) - 1) \
+              + np.array(self.filter_shape[2:]) - 2 * np.array(pad)
         sup = inf + np.array(self.subsample) - 1
-        if not ((inf[0] <= self.n_out[1] <= sup[0]) and (inf[1] <= self.n_out[2] <= sup[1])):
-            raise ValueError("impossible output_shape. output = subsample * (x - 1) + filter - 2 * pad + a, a \in {0, \ldots , subsample-1}")
+        if not inf[0] <= self.n_out[1] <= sup[0]:
+            if inf[1] <= self.n_out[2] <= sup[1]:
+                raise ValueError('impossible output_shape. output = '
+                                 'subsample * (x - 1) + filter - 2 * pad + a, '
+                                 'a \\in {0, \\ldots , subsample-1}')
 
     def set_params(self):
         if self.W is None:
-            W_values = np.asarray(self.init(self, self.filter_shape), dtype=theano.config.floatX)
+            W_values = np.asarray(self.init(self, self.filter_shape),
+                                  dtype=theano.config.floatX)
             self.W = theano.shared(value=W_values, borrow=True)
 
         if self.b is None:
-            b_values = np.zeros((self.filter_shape[0],), dtype=theano.config.floatX)
+            b_values = np.zeros((self.filter_shape[0],),
+                                dtype=theano.config.floatX)
             self.b = theano.shared(value=b_values, borrow=True)
 
         self.params = [self.W, self.b]
@@ -385,10 +451,16 @@ class DeconvCUDNN(Deconv):
     def forward(self, x, train=True):
         img = gpu_contiguous(x)
         kerns = gpu_contiguous(self.W.dimshuffle(1, 0, 2, 3))
-        desc = GpuDnnConvDesc(border_mode=self.border_mode, subsample=self.subsample, conv_mode="conv")(
-            gpu_alloc_empty(img.shape[0], kerns.shape[1], img.shape[2] * self.subsample[0], img.shape[3] * self.subsample[1]).shape, kerns.shape)
-        out = gpu_alloc_empty(img.shape[0], kerns.shape[1], img.shape[2] * self.subsample[0], img.shape[3] * self.subsample[1])
-        return GpuDnnConvGradI()(kerns, img, out, desc) + self.b.dimshuffle('x', 0, 'x', 'x')
+        gpudnnconvdesc = GpuDnnConvDesc(border_mode=self.border_mode,
+                                        subsample=self.subsample,
+                                        conv_mode="conv")
+        out = gpu_alloc_empty(img.shape[0],
+                              kerns.shape[1],
+                              img.shape[2] * self.subsample[0],
+                              img.shape[3] * self.subsample[1])
+        desc = gpudnnconvdesc(out.shape, kerns.shape)
+        return (GpuDnnConvGradI()(kerns, img, out, desc)
+                + self.b.dimshuffle('x', 0, 'x', 'x'))
 
 
 class Pool(Layer):
@@ -397,9 +469,11 @@ class Pool(Layer):
         self.n_out = None
         self.poolsize = poolsize
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
-        self.n_out = (self.n_in[0], self.n_in[1] / self.poolsize[0], self.n_in[2] / self.poolsize[1])
+        self.n_out = (self.n_in[0],
+                      self.n_in[1] / self.poolsize[0],
+                      self.n_in[2] / self.poolsize[1])
 
     def forward(self, x, train=True):
         output = pool.pool_2d(
@@ -415,7 +489,7 @@ class Flatten(Layer):
         self.n_in = None
         self.n_out = None
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
         self.n_out = self.n_in[0] * self.n_in[1] * self.n_in[2]
 
@@ -433,14 +507,15 @@ class GaussianNoise(Layer):
     def set_rng(self, rng):
         self.rng = rng
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
         self.n_out = n_in
 
     def forward(self, x, train=True):
         if train:
-            srng = theano.tensor.shared_randomstreams.RandomStreams(self.rng.randint(999999))
-            output = x + srng.normal(size=x.shape, avg=0, std=self.std,  dtype=x.dtype)
+            srng = T.shared_randomstreams.RandomStreams(self.rng.randint(9999))
+            output = x + srng.normal(size=x.shape, avg=0, std=self.std,
+                                     dtype=x.dtype)
         else:
             output = x
         return output
@@ -454,7 +529,7 @@ class Decoder(Layer):
         self.b = None
         self.params = None
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         if n_in != self.n_in:
             raise ValueError("Definition of Decoder is wrong.")
 
@@ -472,11 +547,10 @@ class Decoder(Layer):
 class Reshape(Layer):
     def __init__(self, shape):
         self.n_in = None
-        self.n_out = shape
+        self.n_out = tuple(shape)
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
 
     def forward(self, x, train=True):
-        return T.reshape(x, (x.shape[0], self.n_out[0], self.n_out[1], self.n_out[2]))
-
+        return T.reshape(x, (x.shape[0], ) + self.n_out)

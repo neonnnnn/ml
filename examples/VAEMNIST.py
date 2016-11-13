@@ -19,13 +19,15 @@ class GaussianSamplingLayer(Layer):
     def set_rng(self, rng):
         self.rng = rng
 
-    def set_input_shape(self, n_in):
+    def set_shape(self, n_in):
         self.n_in = n_in
 
     def forward(self, input, train=True):
-        srng = theano.tensor.shared_randomstreams.RandomStreams(self.rng.randint(999999))
-        epsilon = srng.normal(size=(input.shape[0], self.n_out), avg=0, std=1., dtype=input.dtype)
-        output = input[:, :self.n_out] + T.exp(0.5 * input[:, self.n_out:]) * epsilon
+        srng = T.shared_randomstreams.RandomStreams(self.rng.randint(999999))
+        epsilon = srng.normal(size=(input.shape[0], self.n_out), avg=0, std=1.,
+                              dtype=input.dtype)
+        output = (input[:, :self.n_out]
+                  + T.exp(0.5 * input[:, self.n_out:]) * epsilon)
         return output
 
 
@@ -48,7 +50,8 @@ class KLD(Regularization):
 
 class VAE(Model):
     def __init__(self, rng, encoder, decoder, samplinglayer):
-        super(VAE, self).__init__(rng, encoder=encoder, decoder=decoder, samplinglayer=samplinglayer)
+        super(VAE, self).__init__(rng, encoder=encoder, decoder=decoder,
+                                  samplinglayer=samplinglayer)
 
     def forward(self, x, train):
         encoder_output = self.encoder.forward(x, train)
@@ -66,9 +69,10 @@ class VAE(Model):
         if train:
             cost = ce.calc(x, decoder_output) + kld.calc(encoder_output)
             updates = self.updates(cost, opt)
-            function = theano.function(inputs=[x], outputs=cost, updates=updates)
+            function = theano.function(inputs=[x], outputs=[cost],
+                                       updates=updates)
         else:
-            function = theano.function(inputs=[x], outputs=decoder_output)
+            function = theano.function(inputs=[x], outputs=[decoder_output])
 
         return function
 
@@ -77,7 +81,8 @@ if __name__ == '__main__':
     dataset = load_mnist.load_data()
     X_train, y_train = dataset[0]
     X_valid, y_valid = dataset[1]
-    utils.saveimg(X_valid[:100].reshape(100, 28, 28)*255.0, (10, 10), "imgs/VAE/MNIST_Valid.png")
+    utils.saveimg(X_valid[:100].reshape(100, 28, 28)*255.0, (10, 10),
+                  'imgs/VAE/MNIST_Valid.png')
     # set params
     batch_size = 100
     epoch = 500
@@ -86,32 +91,37 @@ if __name__ == '__main__':
     # make encoder
     encoder = Sequential(28*28, rng1, iprint=False)
     encoder.add(Dense(500))
-    encoder.add(Activation("tanh"))
+    encoder.add(Activation('tanh'))
     encoder.add(Dense(z_dim*2))
     # make decoder
     decoder = Sequential(z_dim, rng1, iprint=False)
     decoder.add(Dense(500))
-    decoder.add(Activation("tanh"))
+    decoder.add(Activation('tanh'))
     decoder.add(Dense(28*28))
-    decoder.add(Activation("sigmoid"))
+    decoder.add(Activation('sigmoid'))
     decoder.compile(batch_size=batch_size, nb_epoch=1)
     # concat encoder and decoder
     # define loss
     opt = SGD(lr=0.001, momentum=0.9)
-    vae = VAE(rng1, encoder=encoder, decoder=decoder, samplinglayer=GaussianSamplingLayer(n_in=2*z_dim, n_out=z_dim))
+    vae = VAE(rng1, encoder=encoder, decoder=decoder,
+              samplinglayer=GaussianSamplingLayer(n_in=2*z_dim, n_out=z_dim))
 
     trainfunction = vae.function(opt, True)
     reconstractfunction = vae.function(opt=None, train=False)
     z_plot = np.random.standard_normal((100, z_dim)).astype(np.float32)
     train_iter = utils.BatchIterator(X_train, 100)
+    print encoder.layers[0].W.get_value().shape
     for i in xrange(epoch):
-        print "epoch:", i + 1
-        X_train, y_train = utils.shuffle(X_train, y_train)
+        print 'epoch:', i + 1
         run(train_iter, trainfunction, True)
         bs = 0
-        sys.stdout.write("\n")
+        sys.stdout.write('\n')
         if (i+1) % 500 == 0:
-            generation = 255.0 * decoder.predict(z_plot).reshape(100, 28, 28)
-            utils.saveimg(generation, (10, 10), "imgs/VAE/VAE_MNIST_epoch" + str(i+1) + ".png")
-            reconstract = 255.0 * reconstractfunction(X_valid[:100]).reshape(100, 28, 28)
-            utils.saveimg(reconstract, (10, 10), "imgs/VAE/VAE_MNIST_reconstruct_epoch" + str(i+1) + ".png")
+            generation = 255.0 * decoder.predict(z_plot)
+            utils.saveimg(generation.reshape(100, 28, 28), (10, 10),
+                          'imgs/VAE/VAE_MNIST_epoch' + str(i+1) + '.png')
+            reconstract = 255.0 * reconstractfunction(X_valid[:100])
+            utils.saveimg(reconstract.reshape(100, 28, 28), (10, 10),
+                          ('imgs/VAE/VAE_MNIST_reconstruct_epoch'
+                           + str(i+1) + '.png')
+                          )

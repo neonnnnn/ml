@@ -36,8 +36,8 @@ class Certesian(object):
         self.vec_len = params[0]
 
     def calc_kernel(self, x1, x2):
-        k1 = (x1[:, :self.vec_len].dot(x2[:, :self.vec_len].T)).multiply((x1[:, self.vec_len:]).dot(x2[:, self.vec_len:].T))
-        k2 = (x1[:, self.vec_len:].dot(x2[:, :self.vec_len].T)).multiply((x1[:, :self.vec_len]).dot(x2[:, self.vec_len:].T))
+        k1 = (x1[:, :self.vec_len].dot(x2[:, :self.vec_len].T)).multiply(x1[:, self.vec_len:].dot(x2[:, self.vec_len:].T))
+        k2 = (x1[:, self.vec_len:].dot(x2[:, :self.vec_len].T)).multiply(x1[:, :self.vec_len].dot(x2[:, self.vec_len:].T))
         return (k1 + k2).T / 2.
 
     def calc_kernel_same(self, x1):

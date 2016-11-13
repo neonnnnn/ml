@@ -8,7 +8,7 @@ from scipy.misc import imsave
 
 
 class BatchIterator(object):
-    def __init__(self, data, batch_size, shuffle=True, seed=1234):
+    def __init__(self, data, batch_size, shuffle_flag=True, seed=1234):
         self._data = data
         self._current = 0
         self.batch_size = batch_size
@@ -23,13 +23,14 @@ class BatchIterator(object):
             self._data_cate = 1
 
         if batch_size > self.n_samples:
-            raise ValueError("Invalid Batch size. Batch size must be <= n_samples")
+            raise ValueError("Invalid Batch size. "
+                             "Batch size must be <= n_samples")
 
         self.n_batches = self.n_samples / self.batch_size
         if self.n_samples % self.batch_size != 0:
             self.n_batches += 1
 
-        if shuffle:
+        if shuffle_flag:
             self._rng = np.random.RandomState(seed)
             self._idx = self._rng.permutation(self.n_samples)
         else:
@@ -84,11 +85,13 @@ def num_of_error(y, p_y_given_x):
     return len(np.where(a != 0)[0])
 
 
-def get_from_module(identifier, module_params, module_name, instantiate=False, kwargs=None):
+def get_from_module(identifier, module_params, module_name, instantiate=False,
+                    kwargs=None):
     if isinstance(identifier, six.string_types):
         res = module_params.get(identifier)
         if not res:
-            raise Exception('Invalid ' + str(module_name) + ': ' + str(identifier))
+            raise Exception('Invalid ' + str(module_name)
+                            + 'and' + str(identifier))
         if instantiate and not kwargs:
             return res()
         elif instantiate and kwargs:
@@ -101,9 +104,10 @@ def get_from_module(identifier, module_params, module_name, instantiate=False, k
 
 def reshape_img(data, imshape):
     if imshape[1] * imshape[2] != (data.shape[1] / imshape[0]):
-        raise Exception('height or width or channel is wrong. (data.shape[1]/channel) must be equal to (height * weight).')
+        raise Exception('height or width or channel is wrong. (data.shape[1]'
+                        '//channel) must be equal to (height * weight).')
     else:
-        return np.reshape(data, (data.shape[0], imshape[0], imshape[1], imshape[2]))
+        return np.reshape(data, (data.shape[0], ) + (imshape))
 
 
 def onehot(y):
@@ -133,10 +137,12 @@ def progbar(now, max_value, time=None):
     prog = "[%s]" % ("=" * width + ">" + " " * (30 - width))
     if now != max_value and time is not None:
         eta = time * (max_value - now) / now
-        sys.stdout.write("\r{0}{1}/{2}, eta:{3:.2f}s".format(prog, now, max_value, eta))
+        sys.stdout.write("\r{0}{1}/{2}, eta:{3:.2f}s"
+                         .format(prog, now, max_value, eta))
         sys.stdout.flush()
     else:
-        sys.stdout.write("\r{0}{1}/{2}, {3:.2f}s".format(prog, now, max_value, time))
+        sys.stdout.write("\r{0}{1}/{2}, {3:.2f}s"
+                         .format(prog, now, max_value, time))
         sys.stdout.flush()
 
 
