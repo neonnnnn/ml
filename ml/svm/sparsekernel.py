@@ -36,15 +36,21 @@ class Certesian(object):
         self.vec_len = params[0]
 
     def calc_kernel(self, x1, x2):
-        k1 = (x1[:, :self.vec_len].dot(x2[:, :self.vec_len].T)).multiply(x1[:, self.vec_len:].dot(x2[:, self.vec_len:].T))
-        k2 = (x1[:, self.vec_len:].dot(x2[:, :self.vec_len].T)).multiply(x1[:, :self.vec_len].dot(x2[:, self.vec_len:].T))
+        k1_1 = x1[:, :self.vec_len].dot(x2[:, :self.vec_len].T)
+        k1_2 = x1[:, self.vec_len:].dot(x2[:, self.vec_len:].T)
+        k1 = k1_1.multiply(k1_2)
+        k2_1 = x1[:, self.vec_len:].dot(x2[:, :self.vec_len].T)
+        k2_2 = x1[:, :self.vec_len].dot(x2[:, self.vec_len:].T)
+        k2 = k2_1.multiply(k2_2)
         return (k1 + k2).T / 2.
 
     def calc_kernel_same(self, x1):
-        k1 = np.multiply(np.array(x1[:, :self.vec_len].multiply(x1[:, :self.vec_len]).sum(axis=1)).ravel(),
-                         np.array(x1[:, self.vec_len:].multiply(x1[:, self.vec_len:]).sum(axis=1)).ravel())
-        k2 = np.multiply(np.array(x1[:, :self.vec_len].multiply(x1[:, self.vec_len:]).sum(axis=1)).ravel(),
-                         np.array(x1[:, self.vec_len:].multiply(x1[:, :self.vec_len]).sum(axis=1)).ravel())
+        k1_1 = x1[:, :self.vec_len].multiply(x1[:, :self.vec_len]).sum(axis=1)
+        k1_2 = x1[:, self.vec_len:].multiply(x1[:, self.vec_len:]).sum(axis=1)
+        k1 = np.array(k1_1).ravel() * np.array(k1_2).ravel()
+        k2_1 = x1[:, :self.vec_len].multiply(x1[:, self.vec_len:]).sum(axis=1)
+        k2_2 = x1[:, self.vec_len:].multiply(x1[:, :self.vec_len]).sum(axis=1)
+        k2 = np.array(k2_1).ravel() * np.array(k2_2).ravel()
         return (k1 + k2) / 2.
 
 

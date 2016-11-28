@@ -28,8 +28,8 @@ class SVC(object):
         self.flag = False
 
     def decision_function(self, x):
-        output = (self.K.calc(self.sv, x)).dot(self.alpha_times_y)
-        return + self.bias
+        output = (self.K.calc(self.support_vector, x)).dot(self.alpha_times_y)
+        return output + self.bias
 
     def predict(self, x):
         return np.sign(self.decision_function(x))
@@ -39,9 +39,9 @@ class SVC(object):
         return 1.0 * sum(pred * y > 0) / len(pred)
 
     def _working_set_selection1(self, grad_f_a, up_idx, low_idx, x, y):
-        minus_y_times_grad = - y * grad_f_a
-        idx1 = up_idx[np.argmax(minus_y_times_grad[up_idx])]
-        idx2 = low_idx[np.argmin(minus_y_times_grad[low_idx])]
+        y_times_grad = y * grad_f_a
+        idx1 = up_idx[np.argmax(-y_times_grad[up_idx])]
+        idx2 = low_idx[np.argmin(-y_times_grad[low_idx])]
         y1 = y[idx1]
         y2 = y[idx2]
         if not (idx1 in self.cache):
@@ -51,21 +51,21 @@ class SVC(object):
             self.cache[idx2] = y * y2 * (self.K.calc(x, x[idx2])).ravel()
 
         # convergence test
-        if minus_y_times_grad[idx1] - minus_y_times_grad[idx2] < self.eps:
+        if -y_times_grad[idx1] + y_times_grad[idx2] < self.eps:
             self.flag = True
 
         a = ((self.cache[idx1])[idx1] + (self.cache[idx2])[idx2]
              - 2 * y1 * y2 * (self.cache[idx1])[idx2])
         if a <= 0:
             a = self.tau
-        d = (minus_y_times_grad[idx1] - minus_y_times_grad[idx2]) / a
+        d = (-y_times_grad[idx1] + y_times_grad[idx2]) / a
 
         return idx1, idx2, d
 
     def _working_set_selection3(self, grad_f_a, up_idx, low_idx, x, y):
-        minus_y_times_grad = - y * grad_f_a
-        idx1 = up_idx[np.argmax(minus_y_times_grad[up_idx])]
-        t = low_idx[np.where(minus_y_times_grad[low_idx] < minus_y_times_grad[idx1])]
+        y_times_grad = y * grad_f_a
+        idx1 = up_idx[np.argmax(-y_times_grad[up_idx])]
+        t = low_idx[np.where(-y_times_grad[low_idx] < -y_times_grad[idx1])]
         y1 = y[idx1]
 
         if not (idx1 in self.cache):
@@ -80,13 +80,13 @@ class SVC(object):
 
         ait = Qii[idx1] + Qtt - 2 * y1 * y[t] * Qii[t]
         ait[np.where(ait <= 0)] = self.tau
-        bit = minus_y_times_grad[idx1] - minus_y_times_grad[t]
+        bit = -y_times_grad[idx1] + y_times_grad[t]
         obj_min = - (bit ** 2) / ait
         t_idx = np.argmin(obj_min)
         idx2 = t[t_idx]
 
         # convergence test
-        if minus_y_times_grad[idx1] - minus_y_times_grad[idx2] < self.eps:
+        if -y_times_grad[idx1] + y_times_grad[idx2] < self.eps:
             self.flag = True
 
         if not (idx2 in self.cache):

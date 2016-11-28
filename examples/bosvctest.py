@@ -33,9 +33,8 @@ if __name__ == '__main__':
     print y.shape
     intervals = [[0.5, 10], [0.01, 0.5]]
     opt = bo.BO(make=make, eval=eval, intervals=intervals, acqparams=1e-6,
-                fold_num=5, opt_times=20)
+                fold_num=5, opt_times=50)
     params, values = opt.fit(x, y)
-    #params, values = opt.fit(x_train, y_train, x_test, y_test)
     np.savetxt("bo_svm_params.txt", params)
     np.savetxt("bo_svm_values.txt", values)
 

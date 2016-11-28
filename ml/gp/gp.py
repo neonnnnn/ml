@@ -9,6 +9,8 @@ class GP(object):
                  theta=None, type2ml=True, iprint=True):
         self.K = kernel.get_kernel(kernel_name)()
         self.theta = theta
+        if theta is not None:
+            self.K.theta = theta
         self.alpha = alpha
         self.beta = beta
         self.type2ml = type2ml
@@ -81,7 +83,7 @@ class GP(object):
 
         if self.type2ml:
             if self.iprint:
-                print (" Doing Type 2 Maximum Likelihood...")
+                print (' Doing Type 2 Maximum Likelihood...')
             f_min = np.inf
             if bounds is None:
                 bounds = [(-5, 5), (-5, 5)]
@@ -110,7 +112,7 @@ class GP(object):
         self.cholesky_C = scipy.linalg.cholesky(self.C, lower=True)
 
         if self.iprint:
-            print ("Training complete.")
+            print ('Training complete.')
 
     def decision_function(self, x):
         if len(x.shape) == 1:
