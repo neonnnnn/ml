@@ -201,14 +201,14 @@ class BatchNormalization(Layer):
         else:
             if x.ndim == 2:
                 output = self.gamma * (x - self.mean_inf)
-                output /= T.sqrt(self.var_inf) +self.eps
+                output /= T.sqrt(self.var_inf + self.eps)
                 output += self.beta
             elif x.ndim == 4:
                 gamma = self.gamma.dimshuffle('x', 0, 'x', 'x')
                 mean_inf = self.mean_inf.dimshuffle('x', 0, 'x', 'x')
                 var_inf = self.var_inf.dimshuffle('x', 0, 'x', 'x')
                 beta = self.beta.dimshuffle('x', 0, 'x', 'x')
-                output = gamma*(x-mean_inf)/(T.sqrt(var_inf)+self.eps) + beta
+                output = gamma*(x-mean_inf)/(T.sqrt(var_inf+self.eps)) + beta
             else:
                 raise ValueError('input.shape must be (batch_size, dim) '
                                  'or (batch_size, filter_num, h, w).')

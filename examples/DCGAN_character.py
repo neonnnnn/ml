@@ -1,7 +1,7 @@
 import numpy as np
 from ml.deeplearning.layers import Dense, Activation, BatchNormalization, Flatten, Reshape,  DeconvCUDNN, ConvCUDNN
 from ml.deeplearning.optimizers import Adam
-from ml.deeplearning.objectives import CrossEntropy, L2Regularization
+from ml.deeplearning.objectives import CrossEntropy
 from ml.deeplearning.models import Sequential
 from ml import utils
 import sys
@@ -17,21 +17,24 @@ def generator(rng, batch_size):
     g.add(BatchNormalization(moving=True))
     g.add(Activation('relu'))
     g.add(Reshape((512, 4, 4)))
+
     g.add(DeconvCUDNN(256, 4, 4, (256, 8, 8), init='normal',
                       subsample=(2, 2), border_mode=(1, 1)))
     g.add(BatchNormalization(moving=True))
     g.add(Activation('relu'))
+
     g.add(DeconvCUDNN(128, 4, 4, (128, 16, 16), init='normal',
                       subsample=(2, 2), border_mode=(1, 1)))
     g.add(BatchNormalization(moving=True))
     g.add(Activation('relu'))
+
     g.add(DeconvCUDNN(64, 4, 4, (64, 32, 32), init='normal',
                       subsample=(2, 2), border_mode=(1, 1)))
     g.add(BatchNormalization(moving=True))
     g.add(Activation('relu'))
+
     g.add(DeconvCUDNN(3, 4, 4, (3, 64, 64), init='normal',
                       subsample=(2, 2), border_mode=(1, 1)))
-    g.add(Activation('tanh'))
     g.compile(batch_size=batch_size, nb_epoch=1)
 
     return g
@@ -42,26 +45,35 @@ def discriminator(rng, batch_size):
     d.add(ConvCUDNN(64, 4, 4, init='normal', subsample=(2, 2),
                     border_mode=(1, 1)))
     d.add(Activation('elu'))
+
     d.add(ConvCUDNN(128, 4, 4, init='normal', subsample=(2, 2),
                     border_mode=(1, 1)))
-    #d.add(BatchNormalization(moving=True))
+    d.add(BatchNormalization(moving=True))
     d.add(Activation('elu'))
+
     d.add(ConvCUDNN(256, 4, 4, init='normal', subsample=(2, 2),
                     border_mode=(1, 1)))
     d.add(BatchNormalization(moving=True))
     d.add(Activation('elu'))
+
     d.add(ConvCUDNN(512, 4, 4, init='normal', subsample=(2, 2),
                     border_mode=(1, 1)))
     d.add(BatchNormalization(moving=True))
     d.add(Activation('elu'))
+
     d.add(Flatten())
     d.add(Dense(1, init='normal'))
     d.add(Activation('sigmoid'))
     d.compile(batch_size=batch_size, nb_epoch=1,
-              loss=[CrossEntropy(), L2Regularization(1e-5)],
-              opt=Adam(lr=0.0002, beta_1=0.5))
+              loss=[CrossEntropy()],
+              opt=Adam(lr=0.0001))
 
     return d
+
+
+def samplez(bs, dim):
+    z = np.random.uniform(low=-1, high=1, size=bs*dim)
+    return z.reshape(batch_size, dim).astype(np.float32)
 
 if __name__ == '__main__':
     # load dataset
@@ -97,8 +109,8 @@ if __name__ == '__main__':
     concat_g.add(generator)
     concat_g.add(discriminator, add_params=False)
     concat_g.compile(batch_size=batch_size, nb_epoch=1,
-                     loss=[CrossEntropy(), L2Regularization(1e-5)],
-                     opt=Adam(lr=0.0002, beta_1=0.5))
+                     loss=[CrossEntropy()],
+                     opt=Adam(lr=0.0001))
 
     # make label
     ones = np.ones(batch_size).astype(np.int8)
@@ -116,13 +128,13 @@ if __name__ == '__main__':
     for i in range(len(generator.layers)):
         if hasattr(generator.layers[i], 'moving'):
             generator.layers[i].moving = False
-    z = np.random.uniform(low=-1, high=1, size=batch_size*100).reshape(batch_size, 100).astype(np.float32)
+    z = samplez(batch_size, 100)
     imitation = generator.predict(z)
     for i in range(len(generator.layers)):
         if hasattr(generator.layers[i], 'moving'):
             generator.layers[i].moving = True
 
-    z_plot = np.random.uniform(low=-1, high=1, size=batch_size*100).reshape(batch_size, 100).astype(np.float32)
+    z_plot = samplez(batch_size, 100)
     # train
     for i in xrange(n_epoch):
         start = 0
@@ -133,19 +145,19 @@ if __name__ == '__main__':
             idx = np.random.randint(data_size, size=batch_size)
             for l in xrange(batch_size):
                 img = np.asarray(Image.open(StringIO(train_data[idx[l]]))).astype(np.float32).transpose(2, 0, 1)
-                X_train[l] = img / 255. * 2. - 1.
+                X_train[l] = (img-128)/128.
             # train discriminator
             discriminator.onebatch_fit(X_train, ones)
             discriminator.onebatch_fit(imitation, zeros)
             # train generator
             if j % k == 0:
-                z = np.random.uniform(low=-1, high=1, size=batch_size*100).reshape(batch_size, 100).astype(np.float32)
+                z = samplez(batch_size, 100)
                 concat_g.onebatch_fit(z, ones)
 
-            z = np.random.uniform(low=-1, high=1, size=batch_size*100).reshape(batch_size, 100).astype(np.float32)
+            z = samplez(batch_size, 100)
             concat_g.onebatch_fit(z, ones)
 
-            z = np.random.uniform(low=-1, high=1, size=batch_size*100).reshape(batch_size, 100).astype(np.float32)
+            z = samplez(batch_size, 100)
             imitation = generator.predict(z)
             e1 = timeit.default_timer()
             start += batch_size
@@ -164,16 +176,9 @@ if __name__ == '__main__':
         # generate and save img
         if (i+1) % 1 == 0:
             print 'generate imitation...'
-            generation = 255.0 * (generator.predict(z_plot) + 1.) / 2.
+            generation = 128 * (generator.predict(z_plot)+1.)
+            generation[np.where(generation < 0)] = 0
+            generation[np.where(generation < 255)] = 255.
             filename = 'imgs/DCGAN/DCGAN_character_epoch' + str(i+1) + '.png'
             utils.color_saveimg(generation, (10, 10), filename)
             del generation
-        # generate Analogy
-        if (i+1) % 10 == 0:
-            z1 = np.random.uniform(low=-1, high=1, size=100)
-            z2 = np.random.uniform(low=-1, high=1, size=100)
-            z = np.zeros((100, 100)).astype(np.float32)
-            for j in xrange(100):
-                z[j] = z1 + (-z1+z2) * j / 99.
-            generation = 255.0 * (generator.predict(z) + 1.) / 2.
-            utils.color_saveimg(generation, (10, 10), 'imgs/DCGAN/DCGAN_character_Analogy_epoch' + str(i + 1) + '.png')
