@@ -334,15 +334,15 @@ class Model(object):
 
     def __init__(self, rng, **kwargs):
         self.params = []
+        self.rng = rng
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-        self.set_shape()
-        self.set_rng(rng)
-        self.set_params()
+        self._set_shape()
+        self._set_rng()
+        self._set_params()
 
-    def set_params(self):
-        print
+    def _set_params(self):
         paramslayers = filter(lambda x: hasattr(x, 'params'),
                               self.__dict__.values())
         map(lambda x: x.set_params(),
@@ -350,17 +350,17 @@ class Model(object):
         self.params = reduce(lambda x, y: x + y,
                              map(lambda x: x.params, paramslayers))
 
-    def set_shape(self):
+    def _set_shape(self):
         layers = filter(lambda x: hasattr(x, 'set_shape'),
                         self.__dict__.values())
         map(lambda x: x.set_shape(x.n_in), layers)
 
-    def set_rng(self, rng):
+    def _set_rng(self):
         rnglayers = filter(lambda x: hasattr(x, 'set_rng'),
                            self.__dict__.values())
-        map(lambda x: x.set_rng(rng), rnglayers)
+        map(lambda x: x.set_rng(self.rng), rnglayers)
 
-    def updates(self, cost, opt):
+    def get_updates(self, cost, opt):
         updates = opt.get_update(cost, self.params)
         updatelayers = filter(lambda x: hasattr(x, 'updates'),
                               self.__dict__.values())
