@@ -77,6 +77,15 @@ def relu(x):
     return T.nnet.relu(x)
 
 
+class Softplus(Activation):
+    def __call__(self, x):
+        return T.nnet.softplus(x)
+
+
+def softplus(x):
+    return T.nnet.softplus(x)
+
+
 class LeakyReLU(Activation):
     def __init__(self, layer=None, alpha=0.2):
         super(LeakyReLU, self).__init__(layer)
