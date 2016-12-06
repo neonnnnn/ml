@@ -163,17 +163,17 @@ class Sequential(object):
         self.pred_function = None
 
         if self.iprint:
-            print 'optimization:{0}'.format(self.opt.__class__.__name__)
-            print 'batch_size:{0}'.format(self.batch_size)
-            print 'nb_epoch:{0}'.format(self.nb_epoch)
-            print 'n_layers:{0}'.format(len(self.layers))
+            print('optimization:{0}'.format(self.opt.__class__.__name__))
+            print('batch_size:{0}'.format(self.batch_size))
+            print('nb_epoch:{0}'.format(self.nb_epoch))
+            print('n_layers:{0}'.format(len(self.layers)))
             if isinstance(self.loss, list):
                 str_loss = ''
                 for l in self.loss:
                     str_loss += str(l.weight) + l.__class__.__name__ + ' + '
-                print 'loss:{0}'.format(str_loss[:-2])
+                print('loss:{0}'.format(str_loss[:-2]))
             else:
-                print 'loss:{0}'.format(loss.__class__.__name__)
+                print('loss:{0}'.format(loss.__class__.__name__))
 
     def fit(self, x_train, y_train, x_valid=None, y_valid=None,
             valid_mode='loss', shuffle=True):
@@ -208,17 +208,16 @@ class Sequential(object):
         start_time = timeit.default_timer()
         # training start
         if self.iprint:
-            print ('training ...')
+            print('training ...')
         i = 0
         train_loss = []
 
         # training while i < nb_epoch
-        while i < self.nb_epoch:
-            i += 1
+        for i in xrange(self.nb_epoch):
             train_loss += [np.mean(run(train_iter, self.train_function,
                                        self.iprint))]
             if self.iprint:
-                print 'epoch:{0}'.format(i)
+                print('epoch:{0}'.format(i+1))
                 sys.stdout.write(', train_loss:{0:.5f}'.format(train_loss[-1]))
             # if there are valid data, calc valid_error
             if valid_flag:
@@ -226,7 +225,7 @@ class Sequential(object):
                     pred = self.predict(valid_iter)
                     this_valid_loss = ((1.0 * num_of_error(y_valid, pred))
                                        / y_valid.shape[0])
-                elif valid_mode == "loss":
+                elif valid_mode == 'loss':
                     this_valid_loss = self.__test(valid_iter,
                                                   self.test_function)
                 if self.iprint:
@@ -238,7 +237,7 @@ class Sequential(object):
                     best_valid_loss = this_valid_loss
 
             if self.iprint:
-                sys.stdout.write("\n")
+                sys.stdout.write('\n')
 
         # training end
         end_time = timeit.default_timer()
@@ -248,7 +247,7 @@ class Sequential(object):
                       .format(best_valid_loss))
             else:
                 print('Training complete.')
-            print (' ran for {0:.2f}m'.format((end_time - start_time) / 60.))
+            print(' ran for {0:.2f}m'.format((end_time - start_time) / 60.))
 
         return train_loss
 
@@ -317,7 +316,7 @@ class Sequential(object):
     def accuracy(self, data_x, data_y):
         pred = self.predict(data_x)
         error = num_of_error(data_y, pred)
-        accuracy = 1 - (1.0 * error) / data_y.shape[0]
+        accuracy = 1 - (1.0*error)/data_y.shape[0]
         return accuracy
 
     def save_weights(self, layer_id, filename):
@@ -326,7 +325,7 @@ class Sequential(object):
         if hasattr(self.layers[layer_id], 'b'):
             np.save(filename+'_b', self.layers[layer_id].b.get_value())
         else:
-            print ('layer{0} doesnt have weights.'.format(layer_id))
+            print('layer{0} doesnt have weights.'.format(layer_id))
 
 
 class Model(object):
@@ -334,6 +333,9 @@ class Model(object):
 
     def __init__(self, rng, **kwargs):
         self.params = []
+        # self.updates is list for params which have been updated
+        # not by gradient descent(e.g., mean_inf and var_inf in BatchNorm).
+        self.updates = []
         self.rng = rng
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -365,7 +367,8 @@ class Model(object):
         updatelayers = filter(lambda x: hasattr(x, 'updates'),
                               self.__dict__.values())
         for layer in updatelayers:
-            updates += layer.updates
+            self.updates += layer.updates
+        updates += self.updates
         return updates
 
     @abstractmethod
