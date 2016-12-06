@@ -15,8 +15,8 @@ if __name__ == '__main__':
     x_test = x_test[np.where((y_test == 5) | (y_test == 8))]
     y_test = y_test[np.where((y_test == 5) | (y_test == 8))]
     y_test = ((y_test - 5) / 3) * 2 - 1
-    print ("train:", len(y_train))
-    print ("test:", len(y_test))
+    print ('train:', len(y_train))
+    print ('test:', len(y_test))
 
     # Set parameters
     def make(params):
@@ -35,6 +35,6 @@ if __name__ == '__main__':
     opt = bo.BO(make=make, eval=eval, intervals=intervals, acqparams=1e-6,
                 fold_num=5, opt_times=50)
     params, values = opt.fit(x, y)
-    np.savetxt("bo_svm_params.txt", params)
-    np.savetxt("bo_svm_values.txt", values)
+    np.savetxt('bo_svm_params.txt', params)
+    np.savetxt('bo_svm_values.txt', values)
 

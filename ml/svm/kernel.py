@@ -13,7 +13,7 @@ class Linear(object):
 
     @staticmethod
     def calc_kernel_same(x1):
-        return np.sum(x1 * x1, axis=1)
+        return np.sum(x1*x1, axis=1)
 
 
 class SparseLinear(object):
@@ -75,9 +75,9 @@ class SparseRBF(object):
     def calc_kernel(self, x1, x2):
         norm1 = np.array(x1.multiply(x1).sum(axis=1)).ravel()
         norm2 = np.array(x2.multiply(x2).sum(axis=1)).ravel()
-        return np.exp(- self.gamma * (np.ones([x2.shape[0], 1]) * norm1
-                                      + (np.ones([x1.shape[0], 1]) * norm2).T
-                                      - 2 * x1.dot(x2.T).T.toarray()))
+        return np.exp(- self.gamma * (np.ones([x2.shape[0], 1])*norm1
+                                      + (np.ones([x1.shape[0], 1])*norm2).T
+                                      - 2*x1.dot(x2.T).T.toarray()))
 
     @staticmethod
     def calc_kernel_same(x1):

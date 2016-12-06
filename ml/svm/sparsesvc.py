@@ -37,10 +37,10 @@ class SparseSVC(SVC):
             self.flag = True
 
         a = ((self.cache[idx1])[0, idx1]
-             + (self.cache[idx2])[0, idx2] - 2 * (self.cache[idx1])[0, idx2])
+             + (self.cache[idx2])[0, idx2] - 2*(self.cache[idx1])[0, idx2])
         if a <= 0:
             a = self.tau
-        d = (-y_times_grad[idx1] + y_times_grad[idx2]) / a
+        d = (-y_times_grad[idx1]+y_times_grad[idx2]) / a
 
         return idx1, idx2, d
 
@@ -59,10 +59,10 @@ class SparseSVC(SVC):
             self.cache2[newkeys] = self.K.calc_same(x[newkeys])
         Qtt = self.cache2[t]
 
-        ait = Qii[0, idx1] + Qtt - 2 * Qii[0, t].toarray().ravel()
+        ait = Qii[0, idx1] + Qtt - 2*Qii[0, t].toarray().ravel()
         ait[np.where(ait <= 0)] = self.tau
         bit = -y_times_grad[idx1] + y_times_grad[t]
-        obj_min = - (bit ** 2) / ait
+        obj_min = -(bit**2) / ait
         t_idx = np.argmin(obj_min)
         idx2 = t[t_idx]
 
@@ -75,7 +75,7 @@ class SparseSVC(SVC):
         return idx1, idx2, bit[t_idx] / ait[t_idx]
 
     def fit(self, x, y):
-        print ("training ...")
+        print ('training ...')
 
         # init_params
         y, up_idx, low_idx, grad_f_a = super(SparseSVC, self).init_params(y)
@@ -83,8 +83,8 @@ class SparseSVC(SVC):
         self.keys = np.ones(x.shape[0], dtype=bool)
 
         for i in range(self.max_iter):
-            if i % (self.max_iter / 1000):
-                sys.stdout.write("\r Iteration:%d/%d" % (i, self.max_iter))
+            if i % (self.max_iter/1000):
+                sys.stdout.write('\rIter:{0}/{1}'.format(i, self.max_iter))
                 sys.stdout.flush()
 
             # select working set
@@ -107,8 +107,8 @@ class SparseSVC(SVC):
             self.alpha[idx2] = alpha2_new
 
             # update grad_f_a
-            updates = (Qii.multiply(y1*y) * (alpha1_new - alpha1_old)
-                       + Qjj.multiply(y2 * y) * (alpha2_new - alpha2_old))
+            updates = (Qii.multiply(y1*y)*(alpha1_new-alpha1_old)
+                       + Qjj.multiply(y2*y)*(alpha2_new-alpha2_old))
             grad_f_a += np.array(updates).ravel()
 
             up_idx[idx1] = self.check_up_idx(y1, alpha1_new)
@@ -119,10 +119,10 @@ class SparseSVC(SVC):
             low_idx[idx2] = self.check_low_idx(y2, alpha2_new)
 
             if self.flag:
-                print ("\nConverge.")
+                print ('\nConverge.')
                 break
         if not self.flag:
-            print ("")
+            print ('')
         print ('Training Complete. \nIteration:'), (i+1)
         print ('len(cache):'), len(self.cache)
         self.cache.clear()

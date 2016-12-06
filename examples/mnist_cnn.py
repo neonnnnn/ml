@@ -19,20 +19,20 @@ if __name__ == '__main__':
 
     clf.add(Conv(32, 5, 5))
     clf.add(BatchNormalization())
-    clf.add(Activation("relu"))
+    clf.add(Activation('relu'))
     clf.add(Pool())
 
     clf.add(Conv(32, 5, 5))
     clf.add(BatchNormalization())
-    clf.add(Activation("relu"))
+    clf.add(Activation('relu'))
     clf.add(Pool())
 
     clf.add(Flatten())
 
     clf.add(Dense(500))
-    clf.add(Activation("relu"))
+    clf.add(Activation('relu'))
     clf.add(Dense(10))
     clf.add(Activation('softmax'))
 
     clf.compile(opt=opt, loss=loss)
-    clf.fit(x_train, y_train, x_test, y_test, valid_mode="error_rate")
+    clf.fit(x_train, y_train, x_test, y_test, valid_mode='error_rate')

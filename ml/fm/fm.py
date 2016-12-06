@@ -38,39 +38,39 @@ class FactorizationMachine(object):
 
     @staticmethod
     def _sigmoid_crossentropy_loss(output, y):
-        return -(y * np.log(1. / (1 + np.exp(-output)))
-                 + (1 - y) * np.log(1. - 1 / (1 + np.exp(-output))))
+        return -(y*np.log(1./(1+np.exp(-output)))
+                 + (1-y)*np.log(1.-1./(1+np.exp(-output))))
 
     @staticmethod
     def _grad_sigmoid_crossentropy_loss(output, y):
-        return 1. / (1 + np.exp(-output)) - y
+        return 1./(1+np.exp(-output)) - y
 
     @staticmethod
     def _square_loss(output, y):
-        return (output - y) ** 2
+        return (output-y) ** 2
 
     @staticmethod
     def _grad_square_loss(output, y):
-        return 2 * (output - y)
+        return 2 * (output-y)
 
     def _grad_V_output(self, xi):
         return (np.dot(np.atleast_2d(xi).T, np.atleast_2d(np.dot(xi, self.V)))
-                - self.V * np.atleast_2d(xi ** 2).T)
+                - self.V*np.atleast_2d(xi**2).T)
 
     def _sgd(self, x, y):
         for xi, yi in zip(x, y):
             output = self.decision_function(x)
             grad_loss_output = self.grad(output, y)
-            self.bias -= self.lr * (grad_loss_output + self.reg[0] * self.bias)
-            self.bias -= self.lr * (grad_loss_output * xi + self.reg[1] * self.w)
-            self.V -= self.lr * (grad_loss_output * self._grad_V_output(xi)
-                                 + self.reg[2] * self.V)
+            self.bias -= self.lr * (grad_loss_output+self.reg[0]*self.bias)
+            self.bias -= self.lr * (grad_loss_output*xi+self.reg[1]*self.w)
+            self.V -= self.lr * (grad_loss_output*self._grad_V_output(xi)
+                                 + self.reg[2]*self.V)
 
     def _als(self, x, y):
         n = y.shape[0]
         output = self.decision_function(x)
         e = y - output
-        new_bias = (self.bias * n + np.sum(e)) / (n + self.reg[0])
+        new_bias = (self.bias*n+np.sum(e)) / (n+self.reg[0])
         e += new_bias - self.bias
         self.bias = new_bias
 
@@ -78,19 +78,19 @@ class FactorizationMachine(object):
         x_squared_sum_axis0 = np.sum(x_squared, axis=0)
         for i in xrange(n):
             new_wi = ((self.w[i]*x_squared_sum_axis0[i]+np.dot(x[:, i], e))
-                      / (x_squared_sum_axis0[i] + self.reg[1]))
-            e += (new_wi - self.w[i]) * x[:, i]
+                      / (x_squared_sum_axis0[i]+self.reg[1]))
+            e += (new_wi-self.w[i]) * x[:, i]
             self.w[i] = new_wi
 
         for i in xrange(self.k):
             q = np.dot(x, self.V[:, i])
             for j in xrange(n):
-                grad_vji = x * (q - x[:, j] * self.V[j, i])
-                new_v = ((self.V[j, i] * np.sum(grad_vji ** 2)
+                grad_vji = x * (q-x[:, j]*self.V[j, i])
+                new_v = ((self.V[j, i]*np.sum(grad_vji**2)
                           + np.dot(grad_vji, e))
-                         / (np.sum(grad_vji ** 2) + self.reg[2]))
-                q += (new_v - self.V[j, i]) * x[:, j]
-                e += (new_v - self.V[j, i]) * grad_vji
+                         / (np.sum(grad_vji**2)+self.reg[2]))
+                q += (new_v-self.V[j, i]) * x[:, j]
+                e += (new_v-self.V[j, i]) * grad_vji
                 self.V[j, i] = new_v
 
     def fit(self, x, y):
@@ -98,13 +98,13 @@ class FactorizationMachine(object):
         self.w = np.zeros(x.shape[0])
         self.bias = 0.0
 
-        print 'training...'
+        print('training...')
         for i in xrange(self.iter):
             idx = self.rng.permutation(y.shape[0])
             x, y = x[idx], y[idx]
             self.optimizer(x, y)
 
-        print 'training complete'
+        print('training complete')
 
     SGD = sgd = _sgd
     ALS = als = _als

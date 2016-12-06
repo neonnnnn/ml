@@ -1,7 +1,7 @@
 import numpy as np
 from load_mnist import load_data
-from ml.deeplearning.layers import Dense, Activation, Dropout, Decoder
-from ml.deeplearning.optimizers import SGD, AdaGrad
+from ml.deeplearning.layers import Dense, Activation, Decoder
+from ml.deeplearning.optimizers import SGD
 from ml.deeplearning.objectives import SquaredError
 from ml.deeplearning.models import Sequential
 from ml import utils
@@ -27,8 +27,8 @@ if __name__ == '__main__':
     clf.fit(x_train, x_train)
 
     W = clf.layers[0].W.get_value().T.reshape(500, 28, 28)
-    utils.visualize(W, (10, 10), "imgs/autoencoder_W.png")
+    utils.visualize(W, (10, 10), 'imgs/autoencoder_W.png')
 
     output = clf.predict(x_test).reshape(x_test.shape[0], 28, 28)
 
-    utils.visualize(output, (10, 10),  "imgs/autoencoder_output.png")
+    utils.visualize(output, (10, 10),  'imgs/autoencoder_output.png')

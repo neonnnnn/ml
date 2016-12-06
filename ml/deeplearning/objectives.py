@@ -128,7 +128,7 @@ class KLDivergenceRegularization(Regularization):
         super(KLDivergenceRegularization, self).__init__(weight)
         self.idx = idx
         if type(idx, int) != 'int':
-            raise TypeError("the type of idx must be int.")
+            raise TypeError('the type of idx must be int.')
         self.rho = rho
 
     def calc(self, layers):

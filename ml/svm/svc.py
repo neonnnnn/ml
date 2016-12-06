@@ -9,7 +9,7 @@ class SVC(object):
                  iprint=True):
         self.C = C
         if sparse:
-            self.K = kernel.get_kernel("Sparse" + kernel_name)(params)
+            self.K = kernel.get_kernel('Sparse' + kernel_name)(params)
         else:
             self.K = kernel.get_kernel(kernel_name)(params)
         self.params = params
@@ -36,7 +36,7 @@ class SVC(object):
 
     def score(self, x, y):
         pred = self.predict(x)
-        return 1.0 * sum(pred * y > 0) / len(pred)
+        return 1.0 * sum(pred*y > 0) / len(pred)
 
     def _working_set_selection1(self, grad_f_a, up_idx, low_idx, x, y):
         y_times_grad = y * grad_f_a
@@ -51,14 +51,14 @@ class SVC(object):
             self.cache[idx2] = y * y2 * (self.K.calc(x, x[idx2])).ravel()
 
         # convergence test
-        if -y_times_grad[idx1] + y_times_grad[idx2] < self.eps:
+        if -y_times_grad[idx1]+y_times_grad[idx2] < self.eps:
             self.flag = True
 
         a = ((self.cache[idx1])[idx1] + (self.cache[idx2])[idx2]
-             - 2 * y1 * y2 * (self.cache[idx1])[idx2])
+             - 2*y1*y2*(self.cache[idx1])[idx2])
         if a <= 0:
             a = self.tau
-        d = (-y_times_grad[idx1] + y_times_grad[idx2]) / a
+        d = (-y_times_grad[idx1]+y_times_grad[idx2]) / a
 
         return idx1, idx2, d
 
@@ -78,15 +78,15 @@ class SVC(object):
             self.cache2[newkeys] = self.K.calc_same(x[newkeys])
         Qtt = self.cache2[t]
 
-        ait = Qii[idx1] + Qtt - 2 * y1 * y[t] * Qii[t]
+        ait = Qii[idx1] + Qtt - 2*y1*y[t]*Qii[t]
         ait[np.where(ait <= 0)] = self.tau
         bit = -y_times_grad[idx1] + y_times_grad[t]
-        obj_min = - (bit ** 2) / ait
+        obj_min = -(bit**2) / ait
         t_idx = np.argmin(obj_min)
         idx2 = t[t_idx]
 
         # convergence test
-        if -y_times_grad[idx1] + y_times_grad[idx2] < self.eps:
+        if -y_times_grad[idx1]+y_times_grad[idx2] < self.eps:
             self.flag = True
 
         if not (idx2 in self.cache):
@@ -115,19 +115,19 @@ class SVC(object):
         return y, y > 0, y < 0, - np.ones(y.shape[0])
 
     def calc_alpha(self, y1, y2, alpha1_old, alpha2_old, d):
-        alpha1_new = alpha1_old + y1 * d
-        const = y1 * alpha1_old + y2 * alpha2_old
+        alpha1_new = alpha1_old + y1*d
+        const = y1*alpha1_old + y2*alpha2_old
 
         if alpha1_new > self.C:
             alpha1_new = self.C
         elif alpha1_new < 0:
             alpha1_new = 0
 
-        alpha2_new = y2 * (const - y1 * alpha1_new)
+        alpha2_new = y2 * (const-y1*alpha1_new)
 
         if alpha2_new > self.C:
             alpha2_new = self.C
-            alpha1_new = y1 * (const - y2 * alpha2_new)
+            alpha1_new = y1 * (const-y2*alpha2_new)
         elif alpha2_new < 0:
             alpha2_new = 0
             alpha1_new = y1 * const
@@ -135,7 +135,7 @@ class SVC(object):
         return alpha1_new, alpha2_new
 
     def calc_result(self, x, y, grad_f_a):
-        support_vector_idx = np.where(self.alpha > 1e-5 * self.C)
+        support_vector_idx = np.where(self.alpha > 1e-5*self.C)
         self.support_vector = x[support_vector_idx]
         self.alpha = self.alpha[support_vector_idx]
         self.alpha_times_y = self.alpha * y[support_vector_idx]
@@ -144,15 +144,16 @@ class SVC(object):
 
     def fit(self, x, y):
         if self.iprint:
-            print ("training ...")
+            print('training ...')
 
         # init_params
         y, up_idx, low_idx, grad_f_a = self.init_params(y)
 
         for i in range(self.max_iter):
             if self.iprint:
-                if i % (self.max_iter / 1000):
-                    sys.stdout.write("\r Iter:%d/%d" % (i+1, self.max_iter))
+                if i % (self.max_iter/1000):
+                    sys.stdout.write('\rIteration:{0}/{1}'
+                                     .format(i+1, self.max_iter))
                     sys.stdout.flush()
             # select working set
             idx1, idx2, d = self.WSS(grad_f_a, up_idx.nonzero()[0],
@@ -187,13 +188,13 @@ class SVC(object):
 
             if self.flag:
                 if self.iprint:
-                    print("\nConverge.")
+                    print('\nConverge.')
                 break
         if self.iprint:
             if not self.flag:
-                print ("")
-            print ('Training Complete.\nIteration:'), (i+1)
-            print ('len(cache):'), len(self.cache)
+                print('')
+            print('Training Complete.\nIteration:'.format(i+1))
+            print('len(cache):'), len(self.cache)
         self.cache.clear()
         del self.cache2
         self.calc_result(x, y, grad_f_a)

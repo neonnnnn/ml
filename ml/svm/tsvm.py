@@ -17,7 +17,7 @@ class TSVM(object):
 
         self.C = C
         if sparse:
-            self.K = kernel.get_kernel("Sparse" + kernel_name)(params)
+            self.K = kernel.get_kernel('Sparse'+kernel_name)(params)
         else:
             self.K = kernel.get_kernel(kernel_name)(params)
         self.params = params
@@ -62,8 +62,8 @@ class TSVM(object):
                 K1 = (self.K.calc(x, x[idx1-1])).ravel()
                 self.cache[idx1] = np.append(np.mean(K1[self.L:]), K1)
             else:
-                K0 = self.K.calc(x[self.L:self.L+self.U], 
-                                        x[:self.L + self.U])
+                K0 = self.K.calc(x[self.L:self.L+self.U],
+                                 x[:self.L+self.U])
                 K0 = np.mean(K0, axis=1)
                 K0 = np.append(K0, K0[self.L:])
                 self.cache[idx1] = np.append(np.mean(K0[self.L:]), K0)
@@ -72,38 +72,38 @@ class TSVM(object):
                 K2 = (self.K.calc(x, x[idx2-1])).ravel()
                 self.cache[idx2] = np.append(np.mean(K2[self.L:]), K2)
             else:
-                K0 = self.K.calc(x[self.L:self.L + self.U], 
-                                        x[:self.L+self.U])
+                K0 = self.K.calc(x[self.L:self.L+self.U],
+                                 x[:self.L+self.U])
                 K0 = np.mean(K0, axis=1)
                 K0 = np.append(K0, K0[self.L:])
                 self.cache[idx2] = np.append(np.mean(K0[self.L:]), K0)
         a = ((self.cache[idx1])[idx1] + (self.cache[idx2])[idx2] 
-             - 2 * (self.cache[idx1])[idx2])
+             - 2*(self.cache[idx1])[idx2])
         if a <= 0:
             a = self.tau
-        d = (-grad[idx1] + grad[idx2]) / a
+        d = (-grad[idx1]+grad[idx2]) / a
         if y[idx1] * d * a < self.eps:
             self.flag = True
         return idx1, idx2, d
 
     def check_up_idx(self, y, alpha, beta, C):
-        up_idx = (((y * alpha + beta) > 0) * ((y * alpha + beta) < C) 
-                  + ((y * alpha + beta) == 0) * (y < 0) 
-                  + ((y * alpha + beta) == C) * (y > 0))
+        up_idx = (((y*alpha + beta) > 0) * ((y*alpha + beta) < C)
+                  + ((y*alpha + beta) == 0) * (y < 0)
+                  + ((y*alpha + beta) == C) * (y > 0))
         return up_idx
 
     def check_low_idx(self, y, alpha, beta, C):
-        low_idx = (((y * alpha + beta) > 0) * ((y * alpha + beta) < C) 
-                   + ((y * alpha + beta) == 0) * (y > 0) 
-                   + ((y * alpha + beta) == C) * (y < 0))
+        low_idx = (((y*alpha + beta) > 0) * ((y*alpha + beta) < C)
+                   + ((y*alpha + beta) == 0) * (y > 0)
+                   + ((y*alpha + beta) == C) * (y < 0))
         return low_idx
 
     def calc_beta(self, x_unlabeled):
-        beta = np.zeros(self.L + 2 * self.U + 1)
+        beta = np.zeros(self.L + 2*self.U + 1)
         f_u = self.decision_function(x_unlabeled)
         y_times_f_u = np.append(f_u, -f_u)
 
-        (beta[self.L + 1:])[np.where(y_times_f_u < self.s)] = self.C_unlabel
+        (beta[self.L+1:])[np.where(y_times_f_u < self.s)] = self.C_unlabel
         return beta
 
     def init_params(self, x_labeled, x_unlabeled, y):
@@ -111,18 +111,18 @@ class TSVM(object):
         self.U = x_unlabeled.shape[0]
 
         if self.iprint:
-            print ("training SVM ...")
+            print('training SVM ...')
         self.clf.fit(x_labeled, y)
         if self.iprint:
-            print ("training SVM complete")
+            print('training SVM complete')
 
         self.support_vector = self.clf.support_vector
         self.bias = self.clf.bias
         self.alpha = self.clf.alpha_times_y
 
-        self.C = np.zeros(self.L + 2 * self.U + 1)
-        self.C[1:self.L + 1] = self.clf.C
-        self.C[self.L + 1:] = self.C_unlabel
+        self.C = np.zeros(self.L + 2*self.U + 1)
+        self.C[1:self.L+1] = self.clf.C
+        self.C[self.L+1:] = self.C_unlabel
         if self.sparse:
             x = sp.vstack((x_labeled, x_unlabeled))
             x = sp.vstack((x, x_unlabeled))
@@ -140,52 +140,52 @@ class TSVM(object):
 
         alpha1_new = alpha1_old + d
         if idx1 != 0:
-            if alpha1_new * y1 + beta[idx1] > self.C[idx1]:
-                alpha1_new = (self.C[idx1] - beta[idx1]) / y1
-            elif alpha1_new * y1 + beta[idx1] < 0:
+            if alpha1_new*y1 + beta[idx1] > self.C[idx1]:
+                alpha1_new = (self.C[idx1]-beta[idx1]) / y1
+            elif alpha1_new*y1 + beta[idx1] < 0:
                 alpha1_new = -beta[idx1] / y1
 
         alpha2_new = const - alpha1_new
         if idx2 != 0:
-            if alpha2_new * y2 + beta[idx2] > self.C[idx2]:
-                alpha2_new = (self.C[idx2] - beta[idx2]) / y2
+            if alpha2_new*y2 + beta[idx2] > self.C[idx2]:
+                alpha2_new = (self.C[idx2]-beta[idx2]) / y2
                 alpha1_new = const - alpha2_new
-            elif alpha2_new * y2 + beta[idx2] < 0:
-                alpha2_new = - beta[idx2] / y2
+            elif alpha2_new*y2 + beta[idx2] < 0:
+                alpha2_new = -beta[idx2] / y2
                 alpha1_new = const - alpha2_new
 
         return alpha1_new, alpha2_new
 
     def calc_result(self, x, y, beta, grad, zeta):
-        support_vector_idx = np.where(self.alpha * y + beta > 1e-5 * self.C)
+        support_vector_idx = np.where(self.alpha*y + beta > 1e-5 * self.C)
         if (support_vector_idx[0])[0] != 0:
             self.support_vector = x[support_vector_idx[0]-1]
             self.alpha = self.alpha[support_vector_idx]
         else:
             self.support_vector = x
             self.alpha = self.alpha
-        self.bias = (np.mean(y[support_vector_idx] 
-                             - (grad[support_vector_idx] 
-                                + zeta[support_vector_idx])))
+        self.bias = (np.mean(y[support_vector_idx] - (grad[support_vector_idx]
+                             + zeta[support_vector_idx])))
 
     def fit(self, x_labeled, y, x_unlabeled):
         x, y_all = self.init_params(x_labeled, x_unlabeled, y)
         beta = self.calc_beta(x_unlabeled)
-        self.alpha = np.zeros(self.L + self.U * 2 + 1)
+        self.alpha = np.zeros(self.L+2*self.U+1)
         zeta = np.array(y_all)
-        zeta[0] = np.mean(y_all[1:self.L + 1])
+        zeta[0] = np.mean(y_all[1:self.L+1])
 
         if self.iprint:
-            print ("training TSVM ...")
+            print('training TSVM ...')
 
         for j in range(self.max_iter2):
             if self.iprint:
-                sys.stdout.write("\r Iteration:%d/%d" % (j + 1, self.max_iter2))
+                sys.stdout.write('\rIteration:{0}/{1}'
+                                 .format(j+1, self.max_iter2))
                 sys.stdout.flush()
             self.flag = False
 
             # init alpha, grad, up_idx and low_idx
-            self.alpha = np.zeros(self.L + self.U * 2 + 1)
+            self.alpha = np.zeros(self.L+2*self.U+1)
             grad = np.array(-zeta)
             up_idx = self.check_up_idx(y_all, self.alpha, beta, self.C)
             low_idx = self.check_low_idx(y_all, self.alpha, beta, self.C)
@@ -214,8 +214,8 @@ class TSVM(object):
                 self.alpha[idx2] = alpha2_new
 
                 # update grad
-                grad += (Kii * (alpha1_new - alpha1_old) 
-                         + Kjj * (alpha2_new - alpha2_old))
+                grad += (Kii*(alpha1_new-alpha1_old)
+                         + Kjj*(alpha2_new-alpha2_old))
 
                 # update up_idx and low_idx
                 if idx1 != 0:
@@ -240,6 +240,5 @@ class TSVM(object):
                 break
             beta = beta_new
 
-        print "\nTraining complete."
-
+        print('\nTraining complete.')
 

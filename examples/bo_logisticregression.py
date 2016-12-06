@@ -32,24 +32,24 @@ if __name__ == '__main__':
     grid = [1000, 100, 10]
 
     opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid,
-                opt_times=50, acq="EI")
+                opt_times=50, acq='EI')
     params, values = opt.fit(x_train, y_train, x_test, y_test)
     # params, values = opt.fit(x_train, y_train, x_test, y_test)
-    np.savetxt("bo_logistic_params_EI_1.txt", params)
-    np.savetxt("bo_logistic_values_EI_1.txt", values)
+    np.savetxt('bo_logistic_params_EI_1.txt', params)
+    np.savetxt('bo_logistic_values_EI_1.txt', values)
     del opt
 
     opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid,
-                opt_times=50, acq="UCB")
+                opt_times=50, acq='UCB')
     params, values = opt.fit(x_train, y_train, x_test, y_test)
     # params, values = opt.fit(x_train, y_train, x_test, y_test)
-    np.savetxt("bo_logistic_params_UCB_1.txt", params)
-    np.savetxt("bo_logistic_values_UCB_1.txt", values)
+    np.savetxt('bo_logistic_params_UCB_1.txt', params)
+    np.savetxt('bo_logistic_values_UCB_1.txt', values)
     del opt
 
     opt = bo.BO(make=make, eval=eval, intervals=intervals, grid=grid,
-                opt_times=50, acq="MI")
+                opt_times=50, acq='MI')
     params, values = opt.fit(x_train, y_train, x_test, y_test)
     # params, values = opt.fit(x_train, y_train, x_test, y_test)
-    np.savetxt("bo_logistic_params_MI_1.txt", params)
-    np.savetxt("bo_logistic_values_MI_1.txt", values)
+    np.savetxt('bo_logistic_params_MI_1.txt', params)
+    np.savetxt('bo_logistic_values_MI_1.txt', values)

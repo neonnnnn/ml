@@ -112,14 +112,14 @@ class Maxout(Activation):
     def __call__(self, x):
         if x.shape[1] % self.pool_size == 0:
             raise ValueError('x.shape[1] must be divided by pool_size.')
-        return T.max(x.reshape(x.shape[0], x.shape[1] / self.pool_size,
+        return T.max(x.reshape(x.shape[0], x.shape[1]/self.pool_size,
                                self.pool_size), axis=2)
 
 
 def maxout(x, pool_size=4):
     if x.shape[1] % pool_size == 0:
         raise ValueError('x.shape[1] must be divided by pool_size.')
-    return T.max(x.reshape(x.shape[0], x.shape[1] / pool_size, pool_size),
+    return T.max(x.reshape(x.shape[0], x.shape[1]/pool_size, pool_size),
                  axis=2)
 
 
@@ -129,11 +129,11 @@ class ELU(Activation):
         self.alpha = alpha
 
     def __call__(self, x):
-        return T.switch(x > 0, x, self.alpha * (T.exp(x) - 1.))
+        return T.switch(x > 0, x, self.alpha*(T.exp(x)-1.))
 
 
 def elu(x, alpha=1.0):
-    return T.switch(x > 0, x, alpha * (T.exp(x) - 1.))
+    return T.switch(x > 0, x, alpha*(T.exp(x)-1.))
 
 
 def get_activation(identifier):

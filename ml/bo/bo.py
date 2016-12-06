@@ -9,7 +9,7 @@ import sys
 
 class BO(object):
     def __init__(self, make, eval, intervals, pred=None, grid=1000,
-                 fold_num=10, opt_times=100, kernel="Matern52", acq="MI",
+                 fold_num=10, opt_times=100, kernel='Matern52', acq='MI',
                  acqparams=None, candidates=None, values=None, params=None):
         self.make = make
         self.eval = eval
@@ -28,14 +28,14 @@ class BO(object):
         self.params = params
 
     def fit(self, train_x, train_y, valid_x=None, valid_y=None, test_x=None):
-        print ("Making candidates ...")
+        print ('Making candidates ...')
 
         pred_flag = False
         if self.pred is not None and test_x is not None:
             pred_flag = True
             pred_y = np.zeros((self.opt_times, test_x.shape[0]))
 
-        if hasattr(self.acquison, "d"):
+        if hasattr(self.acquison, 'd'):
             self.acquison.d = len(self.intervals)
 
         if self.candidates is None:
@@ -59,9 +59,9 @@ class BO(object):
             self.candidates = np.delete(self.candidates, next_idx, 0)
             self.params = np.array(next)
 
-        print ("Optimizing ...")
+        print ('Optimizing ...')
         for i in xrange(self.opt_times):
-            sys.stdout.write("\r Iteration:%d/%d" % (i + 1, self.opt_times))
+            sys.stdout.write('\rIteration:{0}/{1}'.format(i+1, self.opt_times))
             sys.stdout.flush()
             value = 0.0
 
@@ -97,7 +97,7 @@ class BO(object):
                 next = self.candidates[next_idx]
             else:
                 self.values = np.append(self.values, value)
-                if hasattr(self.acquison, "best"):
+                if hasattr(self.acquison, 'best'):
                     self.acquison.best = np.max(self.values)
                 gaussian_process = gp.GP(kernel_name=self.kernel, iprint=False)
                 gaussian_process.fit(self.params, self.values)
@@ -110,7 +110,7 @@ class BO(object):
             self.candidates = np.delete(self.candidates, next_idx, 0)
             self.params = np.vstack((self.params, next))
 
-        print ("\nOptimizing complete.")
+        print ('\nOptimizing complete.')
 
         if not pred_flag:
             return map_to_origin(self.params, self.intervals), self.values

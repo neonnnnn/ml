@@ -1,5 +1,5 @@
 from __future__ import division
-import utils
+from ..utils import get_from_module
 import numpy as np
 # calc_kernel: return scipy.sparse.csc_matrix, (x2.shape[0], x1.shape[1])
 # calc_kernel_same: return numpy.float64
@@ -21,7 +21,7 @@ class Linear(object):
 class Polynomial(object):
     def __init__(self, params):
         if len(params) > 1:
-            print ("When using sparsekernel.Polynomial, coef is ignored.")
+            print('When using sparsekernel.Polynomial, coef is ignored.')
         self.d = params[0]
 
     def calc_kernel(self, x1, x2):
@@ -42,7 +42,7 @@ class Certesian(object):
         k2_1 = x1[:, self.vec_len:].dot(x2[:, :self.vec_len].T)
         k2_2 = x1[:, :self.vec_len].dot(x2[:, self.vec_len:].T)
         k2 = k2_1.multiply(k2_2)
-        return (k1 + k2).T / 2.
+        return (k1+k2).T / 2.
 
     def calc_kernel_same(self, x1):
         k1_1 = x1[:, :self.vec_len].multiply(x1[:, :self.vec_len]).sum(axis=1)
@@ -51,11 +51,11 @@ class Certesian(object):
         k2_1 = x1[:, :self.vec_len].multiply(x1[:, self.vec_len:]).sum(axis=1)
         k2_2 = x1[:, self.vec_len:].multiply(x1[:, :self.vec_len]).sum(axis=1)
         k2 = np.array(k2_1).ravel() * np.array(k2_2).ravel()
-        return (k1 + k2) / 2.
+        return (k1+k2) / 2.
 
 
 def get_kernel(identifier):
-    return utils.get_from_module(identifier, globals(), 'sparsekernel')
+    return get_from_module(identifier, globals(), 'sparsekernel')
 
 
 linear = Linear

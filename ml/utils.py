@@ -23,8 +23,8 @@ class BatchIterator(object):
             self._data_cate = 1
 
         if batch_size > self.n_samples:
-            raise ValueError("Invalid Batch size. "
-                             "Batch size must be <= n_samples")
+            raise ValueError('Invalid Batch size. '
+                             'Batch size must be <= n_samples')
 
         self.n_batches = self.n_samples / self.batch_size
         if self.n_samples % self.batch_size != 0:
@@ -74,13 +74,7 @@ def num_of_error(y, p_y_given_x):
     if p_y_given_x.ndim != 1:
         y_pred = np.argmax(p_y_given_x, axis=1)
     else:
-        y_pred = (np.sign(p_y_given_x - 0.5) + 1) // 2
-    # check if y has same dimension of y_pred
-    if y.ndim != y_pred.ndim:
-        raise TypeError(
-            'y should have the same shape as self.y_pred',
-            ('y', y.type, 'y_pred', y_pred.type)
-        )
+        y_pred = (np.sign(p_y_given_x-0.5)+1) // 2
     a = y - y_pred
     return len(np.where(a != 0)[0])
 
@@ -90,8 +84,8 @@ def get_from_module(identifier, module_params, module_name, instantiate=False,
     if isinstance(identifier, six.string_types):
         res = module_params.get(identifier)
         if not res:
-            raise Exception('Invalid ' + str(module_name)
-                            + 'and' + str(identifier))
+            raise Exception('Invalid ' + str(module_name) + 'and'
+                            + str(identifier))
         if instantiate and not kwargs:
             return res()
         elif instantiate and kwargs:
@@ -112,7 +106,7 @@ def reshape_img(data, imshape):
 
 def onehot(y):
     max_idx = np.max(y)
-    onehot_y = np.zeros((len(y), max_idx), dtype=np.int32)
+    onehot_y = np.zeros((len(y), max_idx+1), dtype=np.int32)
     onehot_y[np.arange(len(y)), y] = 1
     return onehot_y
 
@@ -124,31 +118,31 @@ def shuffle(x, y):
 def make_validation(x, y, validation_rate):
     x, y = shuffle(x, y)
     size = x.shape[0]
-    valid_x = x[0:int(size * validation_rate)]
-    valid_y = y[0:int(size * validation_rate)]
-    x = x[int(size * validation_rate):]
-    y = y[int(size * validation_rate):]
+    valid_x = x[0:int(size*validation_rate)]
+    valid_y = y[0:int(size*validation_rate)]
+    x = x[int(size*validation_rate):]
+    y = y[int(size*validation_rate):]
 
     return x, y, valid_x, valid_y
 
 
 def progbar(now, max_value, time=None):
     width = int(30 * now/max_value)
-    prog = "[%s]" % ("=" * width + ">" + " " * (30 - width))
+    prog = '[' + '='*width + '>' + ' '*(30-width) + ']'
     if now != max_value and time is not None:
         eta = time * (max_value - now) / now
-        sys.stdout.write("\r{0}{1}/{2}, eta:{3:.2f}s"
-                         .format(prog, now, max_value, eta))
+        sys.stdout.write('\r{0}{1}/{2}, eta:{3:.2f}s'.format(prog, now,
+                                                             max_value, eta))
         sys.stdout.flush()
     else:
-        sys.stdout.write("\r{0}{1}/{2}, {3:.2f}s"
-                         .format(prog, now, max_value, time))
+        sys.stdout.write('\r{0}{1}/{2}, {3:.2f}s'.format(prog, now,
+                                                         max_value, time))
         sys.stdout.flush()
 
 
 def visualize(data, figshape, filename, nomarlization_flag=True):
     if nomarlization_flag:
-        data = (data - np.min(data)) / (np.max(data) - np.min(data))
+        data = (data-np.min(data)) / (np.max(data)-np.min(data))
         data *= 255.0
     data = data.astype(np.int)
     pos = 1
@@ -165,23 +159,25 @@ def visualize(data, figshape, filename, nomarlization_flag=True):
 
 def saveimg(data, figshape, filename):
     h, w = data[0].shape[:2]
-    img = np.zeros((h*figshape[0], w*figshape[1]))
-    for n, x in enumerate(data):
-        j = n / figshape[0]
-        i = n % figshape[1]
-        img[j*h:j*h+h, i*w:i*w+w] = x
+    nh, nw = figshape
+    img = np.zeros((h*nh, w*nw), dtype=np.uint8)
+    for i in xrange(nh):
+        for j in xrange(nw):
+            img[i*h:i*h+h, j*w:j*w+w] = data[i*nh+j]
     if filename is not None:
         imsave(filename, img)
     return img
 
 
-def color_saveimg(data, (nh, nw), save_path=None):
+def color_saveimg(data, figshape, save_path=None):
     c, h, w = data[0].shape[:]
+    nh, nw = figshape
     img = np.zeros((h*nh, w*nw, c))
-    for n, x in enumerate(data):
-        j = n / nw
-        i = n % nw
-        img[j*h:j*h+h, i*w:i*w+w, :] = x.transpose(1, 2, 0)
+    for i in xrange(nh):
+        for j in xrange(nw):
+            img[i*h:i*h+h, j*w:j*w+w, :] = data[i*nh+j].transpose(1, 2, 0)
+
     if save_path is not None:
         imsave(save_path, img)
+
     return img

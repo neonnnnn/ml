@@ -10,7 +10,8 @@ class MI(object):
         self.gamma_t = 0
 
     def calc(self, mean, var):
-        phi = self.sqrt_alpha * (np.sqrt(var + self.gamma_t) - np.sqrt(self.gamma_t))
+        phi = self.sqrt_alpha*(np.sqrt(var+self.gamma_t)
+                               - np.sqrt(self.gamma_t))
         next_idx = np.argmax(mean + phi)
         self.gamma_t += var
         self.gamma_t = np.delete(self.gamma_t, next_idx, 0)
@@ -27,8 +28,9 @@ class UCB(object):
         
     def calc(self, mean, var):
         self.t += 1
-        tau = 2 * ((self.d / 2. + 2) * np.log(self.t) + 2*np.log(np.pi) - np.log(3 * self.delta))
-        next_idx = np.argmax(mean + np.sqrt(self.nu * tau * var))
+        tau = 2 * ((self.d/2.+2)*np.log(self.t)
+                   + 2*np.log(np.pi) - np.log(3*self.delta))
+        next_idx = np.argmax(mean + np.sqrt(self.nu*tau*var))
 
         return next_idx
 
@@ -52,7 +54,8 @@ class EI(object):
 
     def calc(self, mean, var):
         gamma = (mean - self.best) / np.sqrt(var)
-        ei = np.sqrt(var) * (gamma * scipy.stats.norm.cdf(gamma) + scipy.stats.norm.pdf(gamma))
+        ei = np.sqrt(var) * (gamma*scipy.stats.norm.cdf(gamma)
+                             + scipy.stats.norm.pdf(gamma))
         ei[np.where(var == 0)] = 0
         next_idx = np.argmax(ei)
 
