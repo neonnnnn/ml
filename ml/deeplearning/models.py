@@ -64,9 +64,10 @@ class Sequential(object):
         self.pred_function = None
         self.test_function = None
         self.iprint = iprint
+        self.updates = []
 
     def __call__(self, x, train=True):
-        self.forward(x, train)
+        return self.forward(x, train)
 
     # add layer
     def add(self, this_layer, add_params=True):
@@ -84,7 +85,7 @@ class Sequential(object):
             else:
                 this_layer.set_shape(self.layers[len(self.layers) - 1].n_out)
             # set params
-            if hasattr(this_layer, "params"):
+            if hasattr(this_layer, 'params'):
                 if this_layer.params is None:
                     this_layer.set_params()
                 if add_params:
@@ -93,7 +94,16 @@ class Sequential(object):
 
     # set output
     def forward(self, x, train=True):
-        return reduce(lambda a, b: b.forward(a, train), [x] + self.layers)
+        output = reduce(lambda a, b: b.forward(a, train), [x] + self.layers)
+
+        return output
+
+    def get_updates(self):
+        if len(self.updates) == 0:
+            for layer in self.layers:
+                if hasattr(layer, 'updates'):
+                    self.updates += layer.updates
+        return self.updates
 
     def function(self, mode='train', y_ndim=None):
         if isinstance(self.n_in, (tuple, list)):
@@ -112,10 +122,8 @@ class Sequential(object):
             if mode == 'train':
                 output = self.forward(x, train=True)
                 cost = self.get_loss_output(y, output)
-                updates = self.opt.get_update(cost, self.params)
-                for layer in self.layers:
-                    if hasattr(layer, "updates"):
-                        updates += layer.updates
+                updates = self.opt.get_updates(cost, self.params)
+                updates += self.updates
                 function = theano.function(inputs=[x, y], outputs=[cost],
                                            updates=updates)
             else:
@@ -209,7 +217,6 @@ class Sequential(object):
         # training start
         if self.iprint:
             print('training ...')
-        i = 0
         train_loss = []
 
         # training while i < nb_epoch
@@ -362,14 +369,12 @@ class Model(object):
                            self.__dict__.values())
         map(lambda x: x.set_rng(self.rng), rnglayers)
 
-    def get_updates(self, cost, opt):
-        updates = opt.get_update(cost, self.params)
-        updatelayers = filter(lambda x: hasattr(x, 'updates'),
+    def get_updates(self):
+        updatelayers = filter(lambda x: hasattr(x, 'get_updates'),
                               self.__dict__.values())
         for layer in updatelayers:
-            self.updates += layer.updates
-        updates += self.updates
-        return updates
+            self.updates += layer.get_updates()
+        return self.updates
 
     @abstractmethod
     def forward(self, *inputs, **kwargs):
