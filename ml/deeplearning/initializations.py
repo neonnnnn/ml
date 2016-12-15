@@ -11,6 +11,10 @@ def normal(layer, shape, mu=0., sigma=0.02):
     return layer.rng.normal(mu, sigma, shape)
 
 
+def zero(layer, shape):
+    return np.zeros(shape)
+
+
 def glorot_uniform(layer, shape, coeff=6.):
     if len(shape) == 2:
         scale = np.sqrt(coeff / sum(shape))
