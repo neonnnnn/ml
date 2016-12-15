@@ -1,35 +1,50 @@
 import theano.tensor as T
 from theanoutils import sharedasarray, sharedzeros
+from abc import ABCMeta, abstractmethod
 
 
-class SGD(object):
+class Optimizer(object):
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def get_updates(self, cost, params):
+        pass
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def __getstate__(self):
+        return self.__dict__
+
+
+class SGD(Optimizer):
     def __init__(self, lr=0.001, momentum=0.9):
         self.lr = sharedasarray(lr)
         self.momentum = sharedasarray(momentum)
         self.ms = None
 
-    def get_update(self, cost, params):
+    def get_updates(self, cost, params):
         grads = T.grad(cost, params)
         updates = []
         if self.ms is None:
             self.ms = [sharedzeros(p.get_value().shape) for p in params]
 
         for p, g, m in zip(params, grads, self.ms):
-            next_m = -self.lr*g + self.momentum*self.m
-            updates.append((self.m, next_m))
+            next_m = -self.lr*g + self.momentum*m
+            updates.append((m, next_m))
             next_p = p + next_m
             updates.append((p, next_p))
 
         return updates
 
 
-class AdaGrad(object):
+class AdaGrad(Optimizer):
     def __init__(self, lr=0.01, eps=1e-6):
         self.lr = sharedasarray(lr)
         self.eps = sharedasarray(eps)
         self.accumulate_gradient = None
 
-    def get_update(self, cost, params):
+    def get_updates(self, cost, params):
         grads = T.grad(cost, params)
         updates = []
         if self.accumulate_gradient is None:
@@ -46,7 +61,7 @@ class AdaGrad(object):
         return updates
 
 
-class AdaDelta(object):
+class AdaDelta(Optimizer):
     def __init__(self, lr=0.01, eps=1e-6, rho=0.95):
         self.lr = sharedasarray(lr)
         self.eps = sharedasarray(eps)
@@ -54,7 +69,7 @@ class AdaDelta(object):
         self.accumulate_gradient = None
         self.accumulate_updates = None
 
-    def get_update(self, cost, params):
+    def get_updates(self, cost, params):
         grads = T.grad(cost, params)
         updates = []
         if self.accumulate_gradient is None:
@@ -79,14 +94,14 @@ class AdaDelta(object):
         return updates
 
 
-class RMSprop(object):
+class RMSprop(Optimizer):
     def __init__(self, lr=0.001, rho=0.9, eps=1e-6):
         self.lr = sharedasarray(lr)
         self.rho = sharedasarray(rho)
         self.eps = eps
         self.accumulate_gradient = None
         
-    def get_update(self, cost, params):
+    def get_updates(self, cost, params):
         grads = T.grad(cost, params)
         if self.accumulate_gradient is None:
             self.accumulate_gradient = [sharedzeros(p.get_value().shape)
@@ -103,7 +118,7 @@ class RMSprop(object):
         return updates
 
 
-class Adam(object):
+class Adam(Optimizer):
     def __init__(self, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8):
         self.lr = sharedasarray(lr)
         self.beta1 = sharedasarray(beta1)
@@ -113,7 +128,7 @@ class Adam(object):
         self.ms = None
         self.vs = None
 
-    def get_update(self, cost, params):
+    def get_updates(self, cost, params):
         grads = T.grad(cost, params)
         updates = []
         if self.i is None:
@@ -121,7 +136,7 @@ class Adam(object):
         updates.append((self.i, self.i+1))
 
         t = self.i+1
-        lr_t = self.lr * T.sqrt(1-T.pow(self.beta2, t)) / (1-self.beta1**t)
+        lr_t = self.lr * T.sqrt(1-self.beta2**t) / (1-self.beta1**t)
         eps_hat = self.eps * T.sqrt(1-self.beta2**t)
         if self.ms is None:
             self.ms = [sharedzeros(p.get_value().shape) for p in params]
@@ -130,7 +145,7 @@ class Adam(object):
 
         for p, g, m, v in zip(params, grads, self.ms, self.vs):
             m_t = (self.beta1*m) + (1.-self.beta1)*g
-            v_t = (self.beta2*v) + (1.-self.beta2)*T.sqr(g)
+            v_t = (self.beta2*v) + (1.-self.beta2)*(g**2)
             p_t = p - lr_t*m_t/(T.sqrt(v_t)+eps_hat)
 
             updates.append((m, m_t))
@@ -140,7 +155,7 @@ class Adam(object):
         return updates
 
 
-class AdaMax(object):
+class AdaMax(Optimizer):
     def __init__(self, lr=0.002, beta1=0.9, beta2=0.999):
         self.lr = sharedasarray(lr)
         self.beta1 = sharedasarray(beta1)
@@ -149,7 +164,7 @@ class AdaMax(object):
         self.ms = None
         self.us = None
 
-    def get_update(self, cost, params):
+    def get_updates(self, cost, params):
         grads = T.grad(cost, params)
         updates = []
         if self.i is None:
