@@ -40,6 +40,16 @@ class Dense(Layer):
         self.init = initializations.get_init(init)
         self.params = None
 
+    def __setstate__(self, state):
+        n_in, n_out, W, b, = state
+        self.n_in = n_in
+        self.n_out = n_out
+        self.W = W
+        self.b = b
+
+    def __getstate__(self):
+        return (self.n_in, self.n_out, self.W, self.b)
+
     def set_rng(self, rng):
         self.rng = rng
 
@@ -126,8 +136,8 @@ class BatchNormalization(Layer):
         self.n_out = n_in
         self.mean_inf = None
         self.var_inf = None
-        self.gamma = 1.0
-        self.beta = 0.0
+        self.gamma = None
+        self.beta = None
         self.params = None
         self.eps = sharedasarray(eps)
         self.momentum = momentum
@@ -135,23 +145,42 @@ class BatchNormalization(Layer):
         self.moving = moving
         self.updates = None
 
+    def __setstate__(self, state):
+        n_in, n_out, mean_inf, var_inf, gamma, beta, momentum, eps = state
+        self.n_in = n_in
+        self.n_out = n_out
+        self.mean_inf = mean_inf
+        self.var_inf = var_inf
+        self.gamma = 1
+        self.beta = 0
+        self.momentum = momentum
+        self.eps = eps
+
+    def __getstate__(self):
+        return (self.n_in, self.n_out, self.mean_inf, self.var_inf,
+                self.gamma, self.beta, self.momentum, self.eps)
+
     def set_shape(self, n_in):
         self.n_in = n_in
         self.n_out = n_in
+
+    def get_updates(self):
+        return self.updates
 
     def set_params(self):
         if isinstance(self.n_in, int):
             shape = self.n_in
         else:
             shape = self.n_in[0]
-        if self.moving:
+        if self.moving and self.mean_inf is None and self.var_inf is None:
             self.mean_inf = sharedzeros(shape)
             self.var_inf = sharedzeros(shape)
 
-        self.gamma = sharedones(shape)
-        self.beta = sharedzeros(shape)
-
         if self.trainable:
+            if self.gamma is None:
+                self.gamma = sharedones(shape)
+            if self.beta is None:
+                self.beta = sharedzeros(shape)
             self.params = [self.gamma, self.beta]
         else:
             self.params = []
@@ -159,48 +188,47 @@ class BatchNormalization(Layer):
         self.momentum = sharedasarray(self.momentum)
 
     def forward(self, x, train=True):
-        if train or not self.moving:
+        if train or (not self.moving):
             if x.ndim == 2:
                 mean = T.mean(x, axis=0)
                 var = T.var(x, axis=0)
-                output = self.gamma * (x-mean) / T.sqrt(var+self.eps)
-                output += self.beta
             elif x.ndim == 4:
-                gamma = self.gamma.dimshuffle('x', 0, 'x', 'x')
-                beta = self.beta.dimshuffle('x', 0, 'x', 'x')
                 mean = T.mean(x, axis=(0, 2, 3))
                 var = T.var(x, axis=(0, 2, 3))
-                output = gamma * (x-mean.reshape((1, x.shape[1], 1, 1)))
-                output /= T.sqrt(var+self.eps).reshape((1, x.shape[1], 1, 1))
-                output += beta
             else:
                 raise ValueError('input.shape must be (batch_size, dim) '
                                  'or (batch_size, filter_num, h, w).')
-
             if self.moving:
                 bs = x.shape[0].astype(theano.config.floatX)
-                self.updates = \
-                    [(self.mean_inf,
-                      self.momentum*self.mean_inf + (1-self.momentum)*mean),
-                     (self.var_inf,
-                      self.momentum*self.var_inf
-                      + (1-self.momentum)*var*bs/(bs - 1.))]
+                mean_inf_next = (self.momentum*self.mean_inf +
+                                 (1-self.momentum)*mean)
+                var_inf_next = (self.momentum*self.var_inf
+                                + (1-self.momentum)*var*bs/(bs-1.))
+                self.updates = [(self.mean_inf, mean_inf_next),
+                                (self.var_inf, var_inf_next)]
             else:
                 self.updates = []
         else:
-            if x.ndim == 2:
-                output = self.gamma * (x - self.mean_inf)
-                output /= T.sqrt(self.var_inf + self.eps)
-                output += self.beta
-            elif x.ndim == 4:
-                gamma = self.gamma.dimshuffle('x', 0, 'x', 'x')
-                mean_inf = self.mean_inf.dimshuffle('x', 0, 'x', 'x')
-                var_inf = self.var_inf.dimshuffle('x', 0, 'x', 'x')
-                beta = self.beta.dimshuffle('x', 0, 'x', 'x')
-                output = gamma*(x-mean_inf)/(T.sqrt(var_inf+self.eps)) + beta
+            mean = self.mean_inf
+            var = self.var_inf
+
+        if x.ndim == 4:
+            mean = mean.dimshuffle('x', 0, 'x', 'x')
+            var = var.dimshuffle('x', 0, 'x', 'x')
+
+        output = (x-mean) / T.sqrt(var+self.eps)
+
+        if self.gamma is not None:
+            if x.ndim == 4:
+                output *= self.gamma.dimshuffle('x', 0, 'x', 'x')
             else:
-                raise ValueError('input.shape must be (batch_size, dim) '
-                                 'or (batch_size, filter_num, h, w).')
+                output *= self.gamma
+        if self.beta is not None:
+            if x.ndim == 4:
+                output += self.beta.dimshuffle('x', 0, 'x', 'x')
+            else:
+                output += self.beta
+
         return output
 
 
@@ -242,6 +270,20 @@ class Conv(Layer):
         self.init = initializations.get_init(init)
         self.border_mode = border_mode
         self.subsample = subsample
+
+    def __setstate__(self, state):
+        n_in, n_out, filter_shape, W, b, border_mode, subsample = state
+        self.n_in = n_in
+        self.n_out = n_out
+        self.filter_shape = filter_shape
+        self.W = W
+        self.b = b
+        self.border_mode = border_mode
+        self.subsample = subsample
+
+    def __getstate__(self):
+        return (self.n_in, self.n_out, self.filter_shape, self.W, self.b,
+                self.border_mode, self.subsample)
 
     def set_rng(self, rng):
         self.rng = rng
@@ -406,9 +448,9 @@ class Deconv(Conv):
         self.params = [self.W, self.b]
 
     def forward(self, x, train=True):
-        op = T.nnet.abstract_conv.AbstractConv2d_gradxs(
+        op = T.nnet.abstract_conv.AbstractConv2d_gradInputs(
             imshp=(None, self.n_out[0], self.n_out[1], self.n_out[2]),
-            kshp=self.filter_shape,
+            kshp=self.filter_shape.dimshuffle(1, 0, 2, 3),
             subsample=self.subsample,
             border_mode=self.border_mode,
             filter_flip=True
