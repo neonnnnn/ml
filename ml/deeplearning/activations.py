@@ -61,11 +61,21 @@ def tanh(x, alpha=1.0):
 
 class Softmax(Activation):
     def __call__(self, x):
-        return T.nnet.softmax(x)
+        return softmax(x)
 
 
 def softmax(x):
-    return T.nnet.softmax(x)
+    if x.ndim == 3:
+        true_shape = x.shape
+        reshape = (true_shape[0]*true_shape[1], true_shape[2])
+        x_reshape = x.reshape(reshape) - T.max(x.reshape(reshape), axis=1,
+                                               keepdims=True)
+        activation = T.nnet.softmax(x_reshape)
+        activation = activation.reshape(true_shape)
+    else:
+        activation = T.nnet.softmax(x)
+
+    return activation
 
 
 class ReLU(Activation):
@@ -83,7 +93,7 @@ class Softplus(Activation):
 
 
 def softplus(x):
-    return T.nnet.softplus(x)
+    return T.maximum(0, x) + T.log(1+T.exp(-T.abs_(x)))
 
 
 class LeakyReLU(Activation):
