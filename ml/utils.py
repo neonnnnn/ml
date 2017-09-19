@@ -1,36 +1,39 @@
 from __future__ import absolute_import
 import six
 import numpy as np
-import sklearn
 import sys
 import matplotlib.pyplot as plt
+from functools import partial
 from scipy.misc import imsave
 
 
 class BatchIterator(object):
-    def __init__(self, data, batch_size, shuffle_flag=True, seed=1234):
-        self._data = data
+    def __init__(self, data, batch_size, shuffle=False, seed=1234, aug=None):
         self._current = 0
-        self.batch_size = batch_size
-
+        self.aug = aug
         if isinstance(data, (tuple, list)):
             self.n_samples = len(data[0])
-            self._data_cate = len(data)
-            if self._data_cate == 1:
-                self._data = np.array(self._data[0])
+            self._n_data = len(data)
+            self.data = data
+
+            if self._n_data > 1:
+                if not reduce(lambda x, y: len(x) == len(y), data):
+                    raise ValueError('Invalid data: '
+                                     'each length must be equal')
         else:
             self.n_samples = len(data)
-            self._data_cate = 1
+            self._n_data = 1
+            self.data = [data]
 
-        if batch_size > self.n_samples:
-            raise ValueError('Invalid Batch size. '
-                             'Batch size must be <= n_samples')
-
+        if isinstance(batch_size, int):
+            if batch_size > self.n_samples:
+                raise ValueError('Invalid Batch size: must be <= n_samples')
+        self.batch_size = batch_size
         self.n_batches = self.n_samples / self.batch_size
         if self.n_samples % self.batch_size != 0:
             self.n_batches += 1
 
-        if shuffle_flag:
+        if shuffle:
             self._rng = np.random.RandomState(seed)
             self._idx = self._rng.permutation(self.n_samples)
         else:
@@ -43,18 +46,23 @@ class BatchIterator(object):
     def next(self):
         if self._current > (self.n_batches - 1):
             self._current = 0
-            raise StopIteration
+            if self._idx is not None:
+                self._idx = self._rng.permutation(self.n_samples)
+            raise StopIteration()
 
-        if self._data_cate == 1:
-            batch = [self._make_batch(self._data)]
+        if self.aug is None:
+            batch = map(self._make_batch, self.data)
         else:
-            batch = map(lambda x: self._make_batch(x), self._data)
+            if isinstance(self.aug, (tuple, list)):
+                batch = map(self._make_batch, self.data, self.aug)
+            else:
+                batch = map(partial(self._make_batch, aug=self.aug), self.data)
 
         self._current += 1
 
         return batch
 
-    def _make_batch(self, data):
+    def _make_batch(self, data, aug=None):
         if self._current == self.n_batches - 1:
             if self._idx is None:
                 batch = data[-self.batch_size:]
@@ -67,6 +75,8 @@ class BatchIterator(object):
                 batch = data[start:end]
             else:
                 batch = data[self._idx[start:end]]
+        if aug is not None:
+            batch = aug(batch)
         return batch
 
 
@@ -101,7 +111,7 @@ def reshape_img(data, imshape):
         raise Exception('height or width or channel is wrong. (data.shape[1]'
                         '//channel) must be equal to (height * weight).')
     else:
-        return np.reshape(data, (data.shape[0], ) + (imshape))
+        return np.reshape(data, [data.shape[0], ] + [imshape])
 
 
 def onehot(y):
@@ -111,8 +121,10 @@ def onehot(y):
     return onehot_y
 
 
-def shuffle(x, y):
-    return sklearn.utils.shuffle(x, y, random_state=1234)
+def shuffle(x, y, seed=1234):
+    rng = np.random.RandomState(seed)
+    idx = rng.permutation(x.shape[0])
+    return x[idx], y[idx]
 
 
 def make_validation(x, y, validation_rate):
@@ -131,12 +143,11 @@ def progbar(now, max_value, time=None):
     prog = '[' + '='*width + '>' + ' '*(30-width) + ']'
     if now != max_value and time is not None:
         eta = time * (max_value - now) / now
-        sys.stdout.write('\r{0}{1}/{2}, eta:{3:.2f}s'.format(prog, now,
-                                                             max_value, eta))
+        sys.stdout.write('\r{0}{1}/{2}, eta:{3:.2f}s '.format(prog, now,
+                                                              max_value, eta))
         sys.stdout.flush()
     else:
-        sys.stdout.write('\r{0}{1}/{2}, {3:.2f}s'.format(prog, now,
-                                                         max_value, time))
+        sys.stdout.write('\r')
         sys.stdout.flush()
 
 
@@ -163,7 +174,7 @@ def saveimg(data, figshape, filename):
     img = np.zeros((h*nh, w*nw), dtype=np.uint8)
     for i in xrange(nh):
         for j in xrange(nw):
-            img[i*h:i*h+h, j*w:j*w+w] = data[i*nh+j]
+            img[i*h:i*h+h, j*w:j*w+w] = data[i*(nh-1)+j]
     if filename is not None:
         imsave(filename, img)
     return img
