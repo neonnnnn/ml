@@ -5,10 +5,24 @@ from abc import ABCMeta, abstractmethod
 
 class Optimizer(object):
     __metaclass__ = ABCMeta
+    
+    def __init__(self, clipping=None):
+        if isinstance(clipping, (int, float)):
+            self.clipping = (-clipping, clipping)
+        elif isinstance(clipping, (tuple, list)):
+            self.clipping = clipping
+        else:
+            self.clipping = None
 
     @abstractmethod
     def get_updates(self, cost, params):
         pass
+
+    def get_gradients(self, cost, params):
+        grads = T.grad(cost, params)
+        if self.clipping is not None:
+            grads = [T.clip(g, *self.clipping) for g in grads]
+        return grads
 
     def __setstate__(self, state):
         self.__dict__.update(state)
@@ -18,13 +32,14 @@ class Optimizer(object):
 
 
 class SGD(Optimizer):
-    def __init__(self, lr=0.001, momentum=0.9):
+    def __init__(self, lr=0.001, momentum=0.9, clipping=None):
         self.lr = sharedasarray(lr)
         self.momentum = sharedasarray(momentum)
         self.ms = None
+        super(SGD, self).__init__(clipping)
 
     def get_updates(self, cost, params):
-        grads = T.grad(cost, params)
+        grads = self.get_gradients(cost, params)
         updates = []
         if self.ms is None:
             self.ms = [sharedzeros(p.get_value().shape) for p in params]
@@ -39,13 +54,14 @@ class SGD(Optimizer):
 
 
 class AdaGrad(Optimizer):
-    def __init__(self, lr=0.01, eps=1e-6):
+    def __init__(self, lr=0.01, eps=1e-6, clipping=None):
         self.lr = sharedasarray(lr)
         self.eps = sharedasarray(eps)
         self.accumulate_gradient = None
+        super(AdaGrad, self).__init__(clipping)
 
     def get_updates(self, cost, params):
-        grads = T.grad(cost, params)
+        grads = self.get_gradients(cost, params)
         updates = []
         if self.accumulate_gradient is None:
             self.accumulate_gradient = [sharedzeros(p.get_value().shape)
@@ -55,22 +71,23 @@ class AdaGrad(Optimizer):
             next_a_g = a_g + T.sqr(g)
             updates.append((a_g, next_a_g))
 
-            next_p = p - self.lr*g/T.sqrt(a_g+self.eps)
+            next_p = p - self.lr*g/(T.sqrt(a_g+self.eps)+self.eps)
             updates.append((p, next_p))
 
         return updates
 
 
 class AdaDelta(Optimizer):
-    def __init__(self, lr=0.01, eps=1e-6, rho=0.95):
+    def __init__(self, lr=0.01, eps=1e-6, rho=0.95, clipping=None):
         self.lr = sharedasarray(lr)
         self.eps = sharedasarray(eps)
         self.rho = sharedasarray(rho)
         self.accumulate_gradient = None
         self.accumulate_updates = None
+        super(AdaDelta, self).__init__(clipping)
 
     def get_updates(self, cost, params):
-        grads = T.grad(cost, params)
+        grads = self.get_gradients(cost, params)
         updates = []
         if self.accumulate_gradient is None:
             self.accumulate_gradient = [sharedzeros(p.get_value().shape) 
@@ -95,14 +112,15 @@ class AdaDelta(Optimizer):
 
 
 class RMSprop(Optimizer):
-    def __init__(self, lr=0.001, rho=0.9, eps=1e-6):
+    def __init__(self, lr=0.001, rho=0.9, eps=1e-6, clipping=None):
         self.lr = sharedasarray(lr)
         self.rho = sharedasarray(rho)
         self.eps = eps
         self.accumulate_gradient = None
+        super(RMSprop, self).__init__(clipping)
         
     def get_updates(self, cost, params):
-        grads = T.grad(cost, params)
+        grads = self.get_gradients(cost, params)
         if self.accumulate_gradient is None:
             self.accumulate_gradient = [sharedzeros(p.get_value().shape)
                                         for p in params]
@@ -119,7 +137,8 @@ class RMSprop(Optimizer):
 
 
 class Adam(Optimizer):
-    def __init__(self, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8):
+    def __init__(self, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8,
+                 clipping=None):
         self.lr = sharedasarray(lr)
         self.beta1 = sharedasarray(beta1)
         self.beta2 = sharedasarray(beta2)
@@ -127,9 +146,10 @@ class Adam(Optimizer):
         self.i = None
         self.ms = None
         self.vs = None
+        super(Adam, self).__init__(clipping)
 
     def get_updates(self, cost, params):
-        grads = T.grad(cost, params)
+        grads = self.get_gradients(cost, params)
         updates = []
         if self.i is None:
             self.i = sharedasarray(0)
@@ -144,6 +164,8 @@ class Adam(Optimizer):
             self.vs = [sharedzeros(p.get_value().shape) for p in params]
 
         for p, g, m, v in zip(params, grads, self.ms, self.vs):
+            if self.clipping is not None:
+                g = T.clip(g, *self.clipping)
             m_t = (self.beta1*m) + (1.-self.beta1)*g
             v_t = (self.beta2*v) + (1.-self.beta2)*(g**2)
             p_t = p - lr_t*m_t/(T.sqrt(v_t)+eps_hat)
@@ -154,18 +176,42 @@ class Adam(Optimizer):
 
         return updates
 
+    def get_updates_value(self, cost, params):
+        grads = self.get_gradients(cost, params)
+        updates = []
+        if self.i is None:
+            self.i = sharedasarray(0)
+
+        t = self.i+1
+        lr_t = self.lr * T.sqrt(1-self.beta2**t) / (1-self.beta1**t)
+        eps_hat = self.eps * T.sqrt(1-self.beta2**t)
+        if self.ms is None:
+            self.ms = [sharedzeros(p.get_value().shape) for p in params]
+        if self.vs is None:
+            self.vs = [sharedzeros(p.get_value().shape) for p in params]
+
+        for p, g, m, v in zip(params, grads, self.ms, self.vs):
+            if self.clipping is not None:
+                g = T.clip(g, *self.clipping)
+            m_t = (self.beta1*m) + (1.-self.beta1)*g
+            v_t = (self.beta2*v) + (1.-self.beta2)*(g**2)
+            updates.append(lr_t*m_t/(T.sqrt(v_t)+eps_hat))
+
+        return updates
+
 
 class AdaMax(Optimizer):
-    def __init__(self, lr=0.002, beta1=0.9, beta2=0.999):
+    def __init__(self, lr=0.002, beta1=0.9, beta2=0.999, clipping=None):
         self.lr = sharedasarray(lr)
         self.beta1 = sharedasarray(beta1)
         self.beta2 = sharedasarray(beta2)
         self.i = None
         self.ms = None
         self.us = None
+        super(AdaMax, self).__init__(clipping)
 
     def get_updates(self, cost, params):
-        grads = T.grad(cost, params)
+        grads = self.get_gradients(cost, params)
         updates = []
         if self.i is None:
             self.i = sharedasarray(0)
