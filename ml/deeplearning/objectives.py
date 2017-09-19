@@ -20,7 +20,7 @@ class Loss(object):
         self.calc(*args)
 
     @abstractmethod
-    def calc(self, *args):
+    def calc(self, **kwargs):
         pass
 
 
@@ -34,7 +34,7 @@ class Regularization(object):
         self.calc(*args)
 
     @abstractmethod
-    def calc(self, *args):
+    def calc(self, **kwargs):
         pass
 
 
@@ -44,9 +44,11 @@ class CrossEntropy(Loss):
             loss = -(y * T.log(T.clip(output.ravel(), 1e-20, 1))
                      + (1 - y) * T.log(T.clip(1 - output.ravel(), 1e-20, 1)))
         else:
+            axis = tuple(range(y.ndim))[1:]
             loss = -T.sum((y * T.log(T.clip(output, 1e-20, 1))
                            + (1 - y) * T.log(T.clip(1 - output, 1e-20, 1))),
-                          axis=1)
+                          axis=axis)
+
         if self.mode:
             loss = T.mean(loss)
         else:
@@ -60,11 +62,9 @@ class MulticlassLogLoss(Loss):
         if y.ndim == 1:
             loss = -(T.log(1e-20 + output)[T.arange(y.shape[0]), y])
         # if one-hot
-        elif y.ndim == 2:
-            loss = -(T.sum(y * T.log(1e-20 + output), axis=1))
-        # else
         else:
-            raise ValueError('Label must be scalar or vector.')
+            axis = tuple(range(y.ndim))[1:]
+            loss = -(T.sum(y * T.log(1e-20 + output), axis=axis))
         if self.mode:
             loss = T.mean(loss)
         else:
@@ -74,7 +74,11 @@ class MulticlassLogLoss(Loss):
 
 class Hinge(Loss):
     def calc(self, y, output):
-        loss = T.maximum(1. - y * output, 0.)
+        if y.ndim == 1:
+            loss = T.maximum(1. - y * output.ravel(), 0.)
+        else:
+            axis = tuple(range(y.ndim))[1:]
+            loss = T.sum(T.maximum(1. - y * output.ravel(), 0.), axis=axis)
         if self.mode:
             loss = T.mean(loss)
         else:
@@ -97,7 +101,8 @@ class SquaredError(Loss):
         if y.ndim == 1:
             loss = (T.square(y - output))
         else:
-            loss = (T.sum(T.square(y - output), axis=1))
+            axis = tuple(range(y.ndim))[1:]
+            loss = T.sum(T.square(y - output), axis=axis)
         if self.mode:
             loss = T.mean(loss)
         else:

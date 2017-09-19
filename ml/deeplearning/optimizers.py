@@ -24,12 +24,6 @@ class Optimizer(object):
             grads = [T.clip(g, *self.clipping) for g in grads]
         return grads
 
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-
-    def __getstate__(self):
-        return self.__dict__
-
 
 class SGD(Optimizer):
     def __init__(self, lr=0.001, momentum=0.9, clipping=None):
