@@ -1,4 +1,3 @@
-
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import theano
@@ -27,28 +26,38 @@ class Layer(object):
     def __call__(self, x, train=True):
         return self.forward(x, train)
 
+    def get_config(self):
+        config = {'class': self.__class__.__name__,
+                  'n_in': self.n_in,
+                  'n_out': self.n_out,
+                  }
+        return config
+
 
 class Dense(Layer):
-    def __init__(self, n_out, n_in=None, init='glorot_uniform',
-                 rng=None, bias=True):
+    def __init__(self, n_out,
+                 n_in=None,
+                 init='normal',
+                 rng=None,
+                 bias=True,
+                 W=None,
+                 b=None):
         self.n_in = n_in
         self.n_out = n_out
         self.rng = rng
-        self.W = None
-        self.b = None
+        self.W = sharedasarray(W, 'W')
+        self.b = sharedasarray(b, 'b')
         self.bias = bias
-        self.init = initializations.get_init(init)
+        if isinstance(init, str):
+            self.init = initializations.get_init(init)()
+        else:
+            self.init = init
         self.params = None
 
-    def __setstate__(self, state):
-        n_in, n_out, W, b, = state
-        self.n_in = n_in
-        self.n_out = n_out
-        self.W = W
-        self.b = b
-
-    def __getstate__(self):
-        return (self.n_in, self.n_out, self.W, self.b)
+    def get_config(self):
+        config = super(Dense, self).get_config()
+        config.update({'bias': self.bias})
+        return config
 
     def set_rng(self, rng):
         self.rng = rng
@@ -63,12 +72,13 @@ class Dense(Layer):
 
     def set_params(self):
         if self.W is None:
-            self.W = sharedasarray(self.init(self, (self.n_in, self.n_out)))
+            self.W = sharedasarray(self.init(self, (self.n_in, self.n_out)),
+                                   'W')
         if not self.bias:
             self.params = [self.W]
         else:
             if self.b is None:
-                self.b = sharedzeros((self.n_out,))
+                self.b = sharedzeros((self.n_out,), 'b')
             self.params = [self.W, self.b]
 
     def set_weight(self, W_values):
@@ -88,24 +98,24 @@ class Dense(Layer):
         if self.W is not None:
             self.W.set_value(W_values)
         else:
-            self.W = theano.shared(value=W_values, borrow=True)
+            self.W = theano.shared(W_values, name='W', borrow=True)
 
     def set_bias(self, b_values):
         if not isinstance(b_values, np.ndarray):
-            raise TypeError('type(b_values')
+            raise TypeError('type(b_values) must be numpy.ndarray')
 
         if b_values.dtype != theano.config.floatX:
-            raise ValueError('W_values.dtype must be {0}'
+            raise ValueError('b_values.dtype must be {0}'
                              .format(theano.config.floatX))
 
         if b_values.shape != (self.n_out, ):
-            raise ValueError('b_values.shape must be (n_out, ), i.e. {0}.'
+            raise ValueError('b_values.shape must be (n_out, ), i.e., {0}.'
                              .format((self.n_out,)))
 
         if self.b is not None:
             self.b.set_value(b_values)
         else:
-            self.b = theano.shared(value=b_values, borrow=True)
+            self.b = theano.shared(value=b_values, name='b', borrow=True)
 
     def forward(self, x, train=True):
         return T.dot(x, self.W) + self.b
@@ -117,6 +127,11 @@ class Activation(Layer):
         self.n_out = None
         self.afunc = activations.get_activation(activation_name)
         self.act_param = args
+
+    def get_config(self):
+        config = super(Activation, self).get_config()
+        config.update({'act': self.afunc.__name__})
+        return config
 
     def set_shape(self, n_in):
         self.n_in = n_in
@@ -130,35 +145,28 @@ class Activation(Layer):
 
 
 class BatchNormalization(Layer):
-    def __init__(self, n_in=None, eps=1e-5, trainable=True, momentum=0.9,
-                 moving=True):
+    def __init__(self,
+                 n_in=None,
+                 eps=1e-5,
+                 trainable=True,
+                 momentum=0.95,
+                 moving=True,
+                 mean_inf=None,
+                 var_inf=None,
+                 beta=None,
+                 gamma=None):
         self.n_in = n_in
         self.n_out = n_in
-        self.mean_inf = None
-        self.var_inf = None
-        self.gamma = None
-        self.beta = None
+        self.mean_inf = sharedasarray(mean_inf, 'mean_inf')
+        self.var_inf = sharedasarray(var_inf, 'var_inf')
+        self.gamma = sharedasarray(gamma, 'gamma')
+        self.beta = sharedasarray(beta, 'beta')
         self.params = None
-        self.eps = sharedasarray(eps)
+        self.eps = sharedasarray(eps, 'eps')
         self.momentum = momentum
         self.trainable = trainable
         self.moving = moving
         self.updates = None
-
-    def __setstate__(self, state):
-        n_in, n_out, mean_inf, var_inf, gamma, beta, momentum, eps = state
-        self.n_in = n_in
-        self.n_out = n_out
-        self.mean_inf = mean_inf
-        self.var_inf = var_inf
-        self.gamma = 1
-        self.beta = 0
-        self.momentum = momentum
-        self.eps = eps
-
-    def __getstate__(self):
-        return (self.n_in, self.n_out, self.mean_inf, self.var_inf,
-                self.gamma, self.beta, self.momentum, self.eps)
 
     def set_shape(self, n_in):
         self.n_in = n_in
@@ -173,19 +181,19 @@ class BatchNormalization(Layer):
         else:
             shape = self.n_in[0]
         if self.moving and self.mean_inf is None and self.var_inf is None:
-            self.mean_inf = sharedzeros(shape)
-            self.var_inf = sharedzeros(shape)
+            self.mean_inf = sharedzeros(shape, 'mean_inf')
+            self.var_inf = sharedzeros(shape, 'var_inf')
 
         if self.trainable:
             if self.gamma is None:
-                self.gamma = sharedones(shape)
+                self.gamma = sharedones(shape, 'gamma')
             if self.beta is None:
-                self.beta = sharedzeros(shape)
+                self.beta = sharedzeros(shape, 'beta')
             self.params = [self.gamma, self.beta]
         else:
             self.params = []
-
-        self.momentum = sharedasarray(self.momentum)
+        if isinstance(self.momentum, float):
+            self.momentum = sharedasarray(self.momentum, 'momentum')
 
     def forward(self, x, train=True):
         if train or (not self.moving):
@@ -238,9 +246,16 @@ class Dropout(Layer):
         self.n_out = n_in
         self.rng = rng
         self.p = p
+        self.srng = None
+
+    def get_config(self):
+        config = super(Dropout, self).get_config()
+        config.update({'p': self.p})
+        return config
 
     def set_rng(self, rng):
         self.rng = rng
+        self.srng = T.shared_randomstreams.RandomStreams(rng.randint(9999))
 
     def set_shape(self, n_in):
         self.n_in = n_in
@@ -248,50 +263,48 @@ class Dropout(Layer):
 
     def forward(self, x, train=True):
         if train:
-            srng = T.shared_randomstreams.RandomStreams(self.rng.randint(9999))
-            output = x * srng.binomial(size=x.shape, n=1,
-                                       p=1-self.p, dtype=x.dtype)
+            output = x * self.srng.binomial(size=x.shape, n=1,
+                                            p=1-self.p, dtype=x.dtype)
         else:
             output = x * (1-self.p)
         return output
 
 
 class Conv(Layer):
-    def __init__(self, nb_filter, nb_height, nb_width, n_in=None, n_out=None,
-                 border_mode='valid', init='he_conv_normal',
-                 subsample=(1, 1), rng=None):
+    def __init__(self,
+                 nb_filter,
+                 nb_height,
+                 nb_width,
+                 n_in=None,
+                 n_out=None,
+                 border_mode='valid',
+                 init='he_conv_normal',
+                 subsample=(1, 1),
+                 rng=None,
+                 W=None,
+                 b=None):
         self.n_in = n_in
         self.n_out = n_out
         self.rng = rng
         self.filter_shape = [nb_filter, None, nb_height, nb_width]
-        self.W = None
-        self.b = None
+        self.W = sharedasarray(W, 'W')
+        self.b = sharedasarray(b, 'b')
         self.params = None
-        self.init = initializations.get_init(init)
+        if isinstance(init, str):
+            self.init = initializations.get_init(init)()
+        else:
+            self.init = init
         self.border_mode = border_mode
         self.subsample = subsample
-
-    def __setstate__(self, state):
-        n_in, n_out, filter_shape, W, b, border_mode, subsample = state
-        self.n_in = n_in
-        self.n_out = n_out
-        self.filter_shape = filter_shape
-        self.W = W
-        self.b = b
-        self.border_mode = border_mode
-        self.subsample = subsample
-
-    def __getstate__(self):
-        return (self.n_in, self.n_out, self.filter_shape, self.W, self.b,
-                self.border_mode, self.subsample)
 
     def set_rng(self, rng):
         self.rng = rng
 
     def set_shape(self, n_in):
         self.n_in = n_in
-        self.filter_shape[1] = self.n_in[0]
-        self.filter_shape = tuple(self.filter_shape)
+        if self.filter_shape[1] is None:
+            self.filter_shape[1] = self.n_in[0]
+            self.filter_shape = tuple(self.filter_shape)
         if self.border_mode == 'valid':
             pad = [0, 0]
         elif self.border_mode == 'full':
@@ -322,10 +335,10 @@ class Conv(Layer):
 
     def set_params(self):
         if self.W is None:
-            self.W = sharedasarray(self.init(self, self.filter_shape))
+            self.W = sharedasarray(self.init(self, self.filter_shape), 'W')
 
         if self.b is None:
-            self.b = sharedzeros((self.filter_shape[0],))
+            self.b = sharedzeros((self.filter_shape[0],), 'b')
 
         self.params = [self.W, self.b]
 
@@ -350,7 +363,7 @@ class Conv(Layer):
 
     def set_bias(self, b_values):
         if not isinstance(b_values, np.ndarray):
-            raise TypeError('type(b_values) must be numpy.ndarry.')
+            raise TypeError('type(b_values) must be numpy.ndarray.')
 
         if b_values.shape != self.filter_shape[0]:
             raise ValueError('b_balues.shape must be (nb_filter,), i.e. {0}.'
@@ -377,19 +390,38 @@ class Conv(Layer):
 
 
 class Deconv(Conv):
-    def __init__(self, nb_filter, nb_height, nb_width, n_out, n_in=None,
-                 border_mode='adapt', init='he_conv_normal',
-                 subsample=(1, 1), rng=None):
-        super(Deconv, self).__init__(nb_filter, nb_height, nb_width, n_in,
-                                     n_out, border_mode, init, subsample, rng)
+    def __init__(self,
+                 nb_filter,
+                 nb_height,
+                 nb_width,
+                 n_out,
+                 n_in=None,
+                 border_mode='adapt',
+                 init='he_conv_normal',
+                 subsample=(1, 1),
+                 rng=None,
+                 W=None,
+                 b=None):
+        super(Deconv, self).__init__(nb_filter,
+                                     nb_height,
+                                     nb_width,
+                                     n_in,
+                                     n_out,
+                                     border_mode,
+                                     init,
+                                     subsample,
+                                     rng,
+                                     W,
+                                     b)
 
     def set_rng(self, rng):
         self.rng = rng
 
     def set_shape(self, n_in):
         self.n_in = n_in
-        self.filter_shape[1] = self.n_in[0]
-        self.filter_shape = tuple(self.filter_shape)
+        if self.filter_shape[1] is None:
+            self.filter_shape[1] = self.n_in[0]
+            self.filter_shape = self.filter_shape
 
         if self.n_out[0] != self.filter_shape[0]:
             raise ValueError('output_shape[0] must be equal nb_filter.')
@@ -440,17 +472,17 @@ class Deconv(Conv):
 
     def set_params(self):
         if self.W is None:
-            self.W = sharedasarray(self.init(self, self.filter_shape))
+            self.W = sharedasarray(self.init(self, self.filter_shape), 'W')
 
         if self.b is None:
-            self.b = sharedzeros((self.filter_shape[0],))
+            self.b = sharedzeros((self.filter_shape[0],), 'b')
 
         self.params = [self.W, self.b]
 
     def forward(self, x, train=True):
         op = T.nnet.abstract_conv.AbstractConv2d_gradInputs(
             imshp=(None, self.n_out[0], self.n_out[1], self.n_out[2]),
-            kshp=self.filter_shape.dimshuffle(1, 0, 2, 3),
+            kshp=self.filter_shape,
             subsample=self.subsample,
             border_mode=self.border_mode,
             filter_flip=True
@@ -516,28 +548,27 @@ class Flatten(Layer):
         return x.flatten(2)
 
 
-class GaussianNoise(Layer):
-    def __init__(self, std=0.1, rng=None):
-        self.n_in = None
-        self.n_out = None
-        self.rng = rng
-        self.std = std
-
-    def set_rng(self, rng):
-        self.rng = rng
+class Concat(Layer):
+    # concatenation of 1d outputs
+    def __init__(self, layers=None):
+        self.layers = layers
+        self.n_out = 0
+        self.n_in = []
+        if self.layers is not None:
+            for layer in self.layers:
+                self.n_in.append(layer.n_out)
 
     def set_shape(self, n_in):
         self.n_in = n_in
-        self.n_out = n_in
+        self.n_out = sum(n_in)
 
-    def forward(self, x, train=True):
-        if train:
-            srng = T.shared_randomstreams.RandomStreams(self.rng.randint(9999))
-            output = x + srng.normal(size=x.shape, avg=0, std=self.std,
-                                     dtype=x.dtype)
+    def forward(self, tensors=None, train=True):
+        if self.layers is not None:
+            return T.concatenate(tensors, axis=1)
         else:
-            output = x
-        return output
+            concat = [self.layer.forward(tensor, train)
+                      for layer, tensor in zip(self.layers, tensors)]
+            return T.concatenate(concat, axis=1)
 
 
 class Decoder(Layer):
@@ -554,7 +585,7 @@ class Decoder(Layer):
 
     def set_params(self):
         if self.b is None:
-            self.b = sharedzeros((self.n_out,))
+            self.b = sharedzeros((self.n_out,), 'b')
 
         self.params = [self.b]
 
@@ -563,12 +594,29 @@ class Decoder(Layer):
 
 
 class Reshape(Layer):
-    def __init__(self, shape):
+    def __init__(self, layer, shape):
+        self.layer = layer
         self.n_in = None
         self.n_out = tuple(shape)
+        self.params = None
+
+    def set_rng(self, rng):
+        self.layer.set_rng(rng)
 
     def set_shape(self, n_in):
-        self.n_in = n_in
+        self.layer.set_shape(n_in)
+        self.n_in = self.layer.n_in
+
+    def set_params(self):
+        self.layer.set_params()
+        self.params = self.layer.params
+
+    def get_updates(self):
+        if hasattr(self.layer, 'get_updates'):
+            return self.layer.get_updates()
+        else:
+            return []
 
     def forward(self, x, train=True):
-        return T.reshape(x, (x.shape[0], )+self.n_out)
+        f = self.layer.forward(x, train)
+        return T.reshape(f, (f.shape[0], )+self.n_out)
