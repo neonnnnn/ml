@@ -14,13 +14,13 @@ from collections import defaultdict, OrderedDict
 class Model(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, rng, **kwargs):
+    def __init__(self, rng, **layers):
         self.params = []
         # self.updates is list for params which have been updated
         # not by gradient descent(e.g., mean_inf and var_inf in BatchNorm).
         self.updates = []
         self.rng = rng
-        for key, value in kwargs.items():
+        for key, value in layers.items():
             setattr(self, key, value)
 
         self.opt = None
@@ -61,8 +61,7 @@ class Model(object):
                              map(lambda x: x.params, paramslayers))
 
     def _set_shape(self):
-        layers = filter(lambda x: hasattr(x, 'set_shape'),
-                        self.__dict__.values())
+        layers = filter(lambda x: hasattr(x, 'set_shape'), self.__dict__.values())
         map(lambda x: x.set_shape(x.n_in), layers)
 
     def _set_rng(self):
@@ -71,9 +70,10 @@ class Model(object):
         map(lambda x: x.set_rng(self.rng), rnglayers)
 
     def get_updates(self):
-        updatelayers = filter(lambda x: (hasattr(x, 'get_updates')
-                                         and (not isinstance(x, Optimizer))),
-                              self.__dict__.values())
+        updatelayers = filter(
+            lambda x: (hasattr(x, 'get_updates') and (not isinstance(x, Optimizer))),
+            self.__dict__.values()
+        )
         for layer in updatelayers:
             self.updates += layer.get_updates()
         return self.updates
@@ -167,8 +167,7 @@ class Model(object):
             if pred.shape[0] + output[-1].shape[0] == n_samples:
                 pred = np.vstack((pred, output[-1]))
             else:
-                pred = np.vstack((pred,
-                                  output[-1][-(n_samples - pred.shape[0]):]))
+                pred = np.vstack((pred, output[-1][-(n_samples - pred.shape[0]):]))
 
         return pred
 
@@ -261,7 +260,9 @@ class Sequential(Model):
 
     # set output
     def forward(self, x, train=True):
-        output = reduce(lambda a, b: b.forward(a, train), [x] + self.layers)
+        if len(x) == 1:
+            x = x[0]
+        output = reduce(lambda a, b: b.forward(a, train=train), [x] + self.layers)
 
         return output
 
@@ -273,42 +274,41 @@ class Sequential(Model):
                     self.updates += layer.get_updates()
         return self.updates
 
-    def _make_train_function(self, x, y):
+    def _make_train_function(self, inputs):
+        x = inputs[:-1]
+        y = inputs[-1]
         output = self.forward(x, train=True)
         loss = self._get_loss_output(y, output, self.train_loss)
         updates = self.opt.get_updates(loss, self.params)
         updates += self.get_updates()
-        function = theano.function(inputs=[x, y], outputs=[loss],
-                                   updates=updates)
+        function = theano.function(inputs=list(inputs), outputs=[loss], updates=updates)
         return function
 
-    def _make_test_function(self, x, y):
+    def _make_test_function(self, inputs):
+        x = inputs[:-1]
+        y = inputs[-1]
         output = self.forward(x, train=False)
         if self.test_loss is None:
             test_loss = self.train_loss
         else:
             test_loss = self.test_loss
         loss = self._get_loss_output(y, output, test_loss)
-        function = theano.function(inputs=[x, y], outputs=[loss])
+        function = theano.function(inputs=list(inputs), outputs=[loss])
         return function
 
-    def _make_pred_function(self, x):
-        output = self.forward(x, train=False)
-        function = theano.function(inputs=[x], outputs=[output])
+    def _make_pred_function(self, inputs):
+        output = self.forward(inputs, train=False)
+        function = theano.function(inputs=list(inputs), outputs=[output])
         return function
 
-    def function(self, x, y=None, mode='train'):
-        if not (mode in ['train', 'test', 'pred']):
+    def function(self, *inputs, **kwargs):
+        if not ('mode' in kwargs):
+            raise ValueError('When making a function, keyword args "mode" must be specified.')
+        mode = kwargs['mode']
+        if not (kwargs['mode'] in ['train', 'test', 'pred']):
             raise ValueError('mode must be "train" or "test" or "pred".')
         else:
-            if mode == 'pred':
-                func = self._make_pred_function(x)
-            else:
-                if y is None:
-                    raise ValueError(
-                        'if mode is "train" or "test", variable y'
-                        'must be argued.')
-                func = getattr(self, '_make_' + mode + '_function')(x, y)
+            func = getattr(self, '_make_' + mode + '_function')(inputs)
         return func
 
     def _get_loss_output(self, y, output, losses):
@@ -331,8 +331,7 @@ class Sequential(Model):
         return accuracy
 
     def get_config(self):
-        config = {'class': self.__class__.__name__,
-                  'n_in': self.n_in}
+        config = {'class': self.__class__.__name__, 'n_in': self.n_in}
 
         return config
 
