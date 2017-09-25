@@ -21,8 +21,7 @@ class Distribution(Model):
 
 
 class Gaussian(Distribution):
-    def __init__(self, mean_layer, logvar_layer, network, rng=None,
-                 activations=None):
+    def __init__(self, mean_layer, logvar_layer, network=None, rng=None, activations=None):
 
         if rng is None:
             rng = network.rng
@@ -33,7 +32,8 @@ class Gaussian(Distribution):
         self.sampling_function = None
         # exp is better than softplus for var layer(?)
         self.activations = activations
-        super(Gaussian, self).__init__(rng, mean_layer=mean_layer,
+        super(Gaussian, self).__init__(rng,
+                                       mean_layer=mean_layer,
                                        logvar_layer=logvar_layer,
                                        network=network)
 
@@ -41,7 +41,10 @@ class Gaussian(Distribution):
         return self.forward(x, sampling, train)
 
     def forward(self, x, sampling=False, train=True):
-        nn_output = self.network.forward(x, train=train)
+        if self.networks is not None:
+            nn_output = self.network.forward(x, train=train)
+        else:
+            nn_output = x
         mean = self.mean_layer.forward(nn_output, train=train)
         logvar = self.logvar_layer.forward(nn_output, train=train)
         if isinstance(self.activations, (list, tuple)):
@@ -59,15 +62,9 @@ class Gaussian(Distribution):
             z = gaussian(mean, T.exp(0.5*logvar), self.srng)
             return mean, logvar, z
 
-    def log_likelihood(self, x, mean, logvar):
-        c = - 0.5 * math.log(2 * math.pi)
-        return T.sum(c - logvar / 2 - (x - mean) ** 2 / (2 * T.exp(logvar)),
-                     axis=1)
-
     def predict(self, pred_batches, mode='pred'):
         if not (mode in ['pred', 'mean', 'logvar', 'sampling']):
-            raise ValueError('mode must be "pred" (= "mean"), "logvar" or '
-                             '"sampling".')
+            raise ValueError('mode must be "pred" (= "mean"), "logvar" or "sampling".')
 
         if self.pred_function is None or self.pred_function.name != mode:
             variables = [variable(datum) for datum in pred_batches.data]
@@ -91,14 +88,18 @@ class Gaussian(Distribution):
         elif mode == 'test':
             mean, logvar = self.forward(x, sampling=False, train=False)
             log_likelihood = T.mean(self.log_likelihood(y, mean, logvar))
-            return theano.function(inputs=[x], outputs=[-log_likelihood],
-                                   name=mode)
+            return theano.function(inputs=[x], outputs=[-log_likelihood], name=mode)
         elif mode == 'sampling':
             mean, logvar, z = self.forward(x, sampling=True, train=False)
             return theano.function(inputs=[x], outputs=[z], name=mode)
         else:
             raise ValueError('mode must be "train", "test", "pred" (= "mean"),'
                              ' "logvar" or "sampling.')
+
+    def log_likelihood(self, x, mean, logvar):
+        axis = tuple(range(x.ndim))[1:]
+        c = - 0.5 * math.log(2 * math.pi)
+        return T.sum(c - logvar / 2 - (x - mean) ** 2 / (2 * T.exp(logvar)), axis=axis)
 
 
 class Bernoulli(Distribution):
@@ -111,8 +112,7 @@ class Bernoulli(Distribution):
         self.n_out = mean_layer.n_out
         self.annealing = annealing
         self.i = None
-        super(Bernoulli, self).__init__(rng, mean_layer=mean_layer,
-                                        network=network)
+        super(Bernoulli, self).__init__(rng, mean_layer=mean_layer, network=network)
 
     def __call__(self, x, sampling=False, train=True):
         return self.forward(x, sampling, train)
@@ -128,7 +128,10 @@ class Bernoulli(Distribution):
         return self.updates
 
     def forward(self, x, sampling=False, train=True):
-        nn_output = self.network.forward(x, train=train)
+        if self.networks is not None:
+            nn_output = self.network.forward(x, train=train)
+        else:
+            nn_output = x
         mean = sigmoid(self.mean_layer.forward(nn_output, train=train))
         if not sampling:
             return mean
@@ -136,18 +139,12 @@ class Bernoulli(Distribution):
             z = bernoulli(mean, temp=self.temp, srng=self.srng)
             return mean, z
 
-    def log_likelihood(self, x, mean):
-        axis = tuple(range(x.ndim))[1:]
-        return T.sum(x*T.log(mean + 1e-10) + (1-x)*T.log(1-mean+1e-10),
-                     axis=axis)
-
     def function(self, x, y=None, mode='train'):
         if mode == 'train':
             mean = self.forward(x, sampling=False, train=True)
             log_likelihood = T.mean(self.log_likelihood(y, mean))
             updates = self.get_updates(-log_likelihood, self.params)
-            return theano.function(inputs=[x], outputs=[-log_likelihood],
-                                   updates=updates)
+            return theano.function(inputs=[x], outputs=[-log_likelihood], updates=updates)
         elif mode == 'pred':
             mean = self.forward(x, sampling=False, train=False)
             return theano.function(inputs=[x], outputs=[mean])
@@ -161,10 +158,17 @@ class Bernoulli(Distribution):
         else:
             raise ValueError('mode must be "train" or "test" or "pred".')
 
+    def log_likelihood(self, x, mean):
+        axis = tuple(range(x.ndim))[1:]
+        return T.sum(x * T.log(mean + 1e-10) + (1 - x) * T.log(1 - mean + 1e-10), axis=axis)
+
 
 class Categorical(Bernoulli):
     def forward(self, x, sampling=False, train=True):
-        nn_output = self.network.forward(x, train=train)
+        if self.networks is not None:
+            nn_output = self.network.forward(x, train=train)
+        else:
+            nn_output = x
         mean = softmax(self.mean_layer.forward(nn_output, train=train))
         if not sampling:
             return mean
