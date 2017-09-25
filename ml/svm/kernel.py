@@ -59,8 +59,8 @@ class RBF(object):
 
     def calc(self, x1, x2):
         x2 = np.atleast_2d(x2)
-        return np.exp(-self.gamma * (np.atleast_2d(np.sum(x1*x1, axis=1))
-                                     + np.atleast_2d(np.sum(x2*x2, axis=1)).T
+        return np.exp(-self.gamma * (np.sum(x1*x1, axis=1, keepdims=True).T
+                                     + np.sum(x2*x2, axis=1, keepdims=True)
                                      - 2 * np.dot(x1, x2.T).T))
 
     @staticmethod
@@ -84,8 +84,9 @@ class SparseRBF(object):
         return np.ones(x1.shape[0])
 
 
-def get_kernel(identifier):
-    return utils.get_from_module(identifier, globals(), 'kernel')
+def get_kernel(identifier, params=None):
+    return utils.get_from_module(identifier, globals(), 'kernel', True,
+                                 kwargs={'params': params})
 
 linear = Linear
 Sparselinear = SparseLinear

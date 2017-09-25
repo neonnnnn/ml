@@ -550,25 +550,38 @@ class Flatten(Layer):
 
 class Concat(Layer):
     # concatenation of 1d outputs
-    def __init__(self, layers=None):
+    def __init__(self, layers=None, axis=1):
         self.layers = layers
         self.n_out = 0
         self.n_in = []
+        self.axis = axis
         if self.layers is not None:
             for layer in self.layers:
                 self.n_in.append(layer.n_out)
 
     def set_shape(self, n_in):
-        self.n_in = n_in
-        self.n_out = sum(n_in)
+        if self.n_in != n_in:
+            raise ValueError('The values of n_in is wrong.')
+        if isinstance(self.n_in[0], int):
+            if self.axis == 1:
+                self.n_out = sum(self.n_in)
+            else:
+                raise ValueError('self.axis must be 1 when concatenating 1D (Dense) layers.')
+        else:
+            n_out = list(self.n_in[0])
+            for n_in in self.n_in[1:]:
+                if len(n_out) != n_in:
+                    raise ValueError('len(n_in) of all concatenated layers  must be equal.')
+
+        self.n_out = tuple(n_out)
 
     def forward(self, tensors=None, train=True):
         if self.layers is not None:
-            return T.concatenate(tensors, axis=1)
+            return T.concatenate(tensors, axis=self.axis)
         else:
             concat = [self.layer.forward(tensor, train)
                       for layer, tensor in zip(self.layers, tensors)]
-            return T.concatenate(concat, axis=1)
+            return T.concatenate(concat, axis=self.axis)
 
 
 class Decoder(Layer):
@@ -594,22 +607,29 @@ class Decoder(Layer):
 
 
 class Reshape(Layer):
-    def __init__(self, layer, shape):
+    def __init__(self, shape, layer=None):
         self.layer = layer
         self.n_in = None
         self.n_out = tuple(shape)
         self.params = None
 
     def set_rng(self, rng):
-        self.layer.set_rng(rng)
+        if self.layer is not None:
+            self.layer.set_rng(rng)
 
     def set_shape(self, n_in):
-        self.layer.set_shape(n_in)
-        self.n_in = self.layer.n_in
+        if self.layer is not None:
+            self.layer.set_shape(n_in)
+            self.n_in = self.layer.n_out
+        else:
+            self.n_in = n_in
 
     def set_params(self):
-        self.layer.set_params()
-        self.params = self.layer.params
+        if hasattr(self.layer, 'set_params'):
+            self.layer.set_params()
+            self.params = self.layer.params
+        else:
+            self.params = []
 
     def get_updates(self):
         if hasattr(self.layer, 'get_updates'):
@@ -618,5 +638,8 @@ class Reshape(Layer):
             return []
 
     def forward(self, x, train=True):
-        f = self.layer.forward(x, train)
+        if self.layer is not None:
+            f = self.layer.forward(x, train)
+        else:
+            f = x
         return T.reshape(f, (f.shape[0], )+self.n_out)

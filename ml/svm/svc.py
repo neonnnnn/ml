@@ -1,17 +1,14 @@
 import numpy as np
 import kernel
 import sys
+from scipy import sparse
 
 
 class SVC(object):
     def __init__(self, C, kernel_name='linear', params=None, eps=1e-4,
-                 tau=1e-12, max_iter=10000, wss='WSS3', sparse=False,
-                 iprint=True):
+                 tau=1e-12, max_iter=100000, wss='WSS3', iprint=True):
         self.C = C
-        if sparse:
-            self.K = kernel.get_kernel('Sparse' + kernel_name)(params)
-        else:
-            self.K = kernel.get_kernel(kernel_name)(params)
+        self.K = kernel.get_kernel(kernel_name, params)
         self.params = params
         self.eps = eps
         self.tau = tau
@@ -118,19 +115,15 @@ class SVC(object):
         alpha1_new = alpha1_old + y1*d
         const = y1*alpha1_old + y2*alpha2_old
 
-        if alpha1_new > self.C:
-            alpha1_new = self.C
-        elif alpha1_new < 0:
-            alpha1_new = 0
+        if y1 == y2:
+            upper = min(self.C, alpha1_old + alpha2_old)
+            lower = max(0, alpha1_old + alpha2_old - self.C)
+        else:
+            upper = min(self.C, alpha1_old - alpha2_old + self.C)
+            lower = max(0, alpha1_old - alpha2_old)
 
+        alpha1_new = np.clip(alpha1_new, lower, upper)
         alpha2_new = y2 * (const-y1*alpha1_new)
-
-        if alpha2_new > self.C:
-            alpha2_new = self.C
-            alpha1_new = y1 * (const-y2*alpha2_new)
-        elif alpha2_new < 0:
-            alpha2_new = 0
-            alpha1_new = y1 * const
 
         return alpha1_new, alpha2_new
 
@@ -139,12 +132,15 @@ class SVC(object):
         self.support_vector = x[support_vector_idx]
         self.alpha = self.alpha[support_vector_idx]
         self.alpha_times_y = self.alpha * y[support_vector_idx]
-        self.bias = np.average(-y[support_vector_idx]
-                               * grad_f_a[support_vector_idx])
+        self.bias = np.mean(-y[support_vector_idx] * grad_f_a[support_vector_idx])
 
     def fit(self, x, y):
         if self.iprint:
             print('training ...')
+
+        if sparse.issparse(x):
+            kernel_name = 'Sparse' + self.K.__class__.__name__
+            self.K = kernel.get_kernel(kernel_name, self.params)
 
         # init_params
         y, up_idx, low_idx, grad_f_a = self.init_params(y)
@@ -193,8 +189,8 @@ class SVC(object):
         if self.iprint:
             if not self.flag:
                 print('')
-            print('Training Complete.\nIteration:'.format(i+1))
-            print('len(cache):'), len(self.cache)
+            print('Training Complete.\nIteration:{0}'.format(i+1))
+            print('len(cache):{0}'.format(len(self.cache)))
         self.cache.clear()
         del self.cache2
         self.calc_result(x, y, grad_f_a)
