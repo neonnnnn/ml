@@ -58,8 +58,7 @@ class AdaGrad(Optimizer):
         grads = self.get_gradients(cost, params)
         updates = []
         if self.accumulate_gradient is None:
-            self.accumulate_gradient = [sharedzeros(p.get_value().shape)
-                                        for p in params]
+            self.accumulate_gradient = [sharedzeros(p.get_value().shape) for p in params]
 
         for p, g, a_g in zip(params, grads, self.accumulate_gradient):
             next_a_g = a_g + T.sqr(g)
@@ -131,8 +130,7 @@ class RMSprop(Optimizer):
 
 
 class Adam(Optimizer):
-    def __init__(self, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8,
-                 clipping=None):
+    def __init__(self, lr=0.001, beta1=0.9, beta2=0.999, eps=1e-8, clipping=None):
         self.lr = sharedasarray(lr)
         self.beta1 = sharedasarray(beta1)
         self.beta2 = sharedasarray(beta2)
@@ -158,8 +156,6 @@ class Adam(Optimizer):
             self.vs = [sharedzeros(p.get_value().shape) for p in params]
 
         for p, g, m, v in zip(params, grads, self.ms, self.vs):
-            if self.clipping is not None:
-                g = T.clip(g, *self.clipping)
             m_t = (self.beta1*m) + (1.-self.beta1)*g
             v_t = (self.beta2*v) + (1.-self.beta2)*(g**2)
             p_t = p - lr_t*m_t/(T.sqrt(v_t)+eps_hat)
