@@ -23,6 +23,7 @@ def sharedasarray(input, name=None):
 
 
 def variable(x, name=None):
+    print(x)
     if x.ndim == 1:
         if x.dtype == theano.config.floatX:
             ret = T.vector(name=name)

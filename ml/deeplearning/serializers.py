@@ -3,6 +3,9 @@ import json
 from theano.compile.sharedvalue import SharedVariable
 import numpy as np
 from models import Sequential, Model
+from distributions import *
+from normalizations import *
+from layers import *
 from collections import OrderedDict
 
 
@@ -26,7 +29,8 @@ def save(model, f):
 
 def _save(model, f):
     f.attrs['name'] = model.__class__.__name__
-    f.attrs['config'] = json.dumps(model.get_config()).encode('utf8')
+    print(f.attrs['name'])
+    f.attrs['config'] = json.dumps(model.get_config()).encode('utf-8')
     if isinstance(model, Model):
         rng_group = f.create_group('rng')
         state = model.rng.get_state()
@@ -37,12 +41,13 @@ def _save(model, f):
 
     if hasattr(model, 'get_layers_with_names_configs'):
         layers, names, config = model.get_layers_with_names_configs()
-        layers_group = f.create_group('Layers')
-        layers_group.attrs['config'] = json.dumps(config)
-        for layer, name in zip(layers, names):
-            if hasattr(layer, 'params'):
-                g = layers_group.create_group(name)
-                _save(layer, g)
+        if layers is not None:
+            layers_group = f.create_group('Layers')
+            layers_group.attrs['config'] = json.dumps(config).encode('utf-8')
+            for layer, name in zip(layers, names):
+                if hasattr(layer, 'params'):
+                    g = layers_group.create_group(name)
+                    _save(layer, g)
 
     for k, v in model.__dict__.items():
         if isinstance(v, SharedVariable):
@@ -50,59 +55,60 @@ def _save(model, f):
             _create_group(f, k, val)
 
 
-def load(f):
+def load(f, layers_dic=globals()):
     if isinstance(f, str):
         f = h5py.File(f, 'r')
-
-    model = _load(f)
+    model = _load(f, layers_dic)
 
     f.close()
 
     return model
 
 
-def _load(f):
+def _load(f, layers_dic):
     attrs = f.attrs
-    config = json.loads(attrs['config'], object_pairs_hook=OrderedDict)
-    if 'class' in config.key():
+    config = json.loads(attrs['config'].decode('utf-8'), object_pairs_hook=OrderedDict)
+    if 'class' in config.keys():
         model_class = config.pop('class')
+    layers = None
     for key in f.keys():
-        if key=='rng':
+        if key == 'rng':
             rng = np.random.RandomState()
-            state = ['MIT19937',
+            state = ['MT19937',
                      f['rng']['keys'].value,
-                     f['rng']['pos'],
-                     f['rng']['has_gaussian'],
-                     f['rng']['pos']]
+                     f['rng'].attrs['pos'],
+                     f['rng'].attrs['has_gauss'],
+                     f['rng'].attrs['cached_gaussian']]
             rng.set_state(tuple(state))
             config.update({'rng': rng})
-        if key == 'Layers':
+        elif key == 'Layers':
             # OrderedDict
-            layers = _load_layers(f['Layers'])
-        # parameters
+            layers = _load_layers(f['Layers'], layers_dic)
+        # parameters (Dataset)
         else:
             config.update({key: f[key].value})
 
     if model_class == 'Sequential':
-        model = globals()[model_class](config)
-        for layer in layers.items():
+        model = layers_dic[model_class](**config)
+        for layer in layers.values():
             model.add(layer)
     else:
-        config.update(layers)
-        model = globals()[model_class](config)
-
+        if layers is not None:
+            config.update(layers)
+        model = layers_dic[model_class](**config)
     return model
 
 
-def _load_layers(f):
+def _load_layers(f, layers_dic):
     layers = OrderedDict()
-    configs = json.loads(f.attrs['config'], object_pairs_hook=OrderedDict)
-    for key, value in configs:
+    configs = json.loads(f.attrs['config'].decode('utf-8'), object_pairs_hook=OrderedDict)
+    for key, value in configs.items():
+        # if layer has params:
         if key in f.keys():
-            layer = _load(f[key])
+            layer = _load(f[key], layers_dic)
         else:
             layer_class = value.pop('class')
-            layer = globals()[layer_class](value)
+            layer = layers_dic[layer_class](**value)
 
-        layers.update({key:layer})
+        layers.update({key: layer})
     return layers
