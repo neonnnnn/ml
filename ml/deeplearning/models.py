@@ -260,8 +260,9 @@ class Sequential(Model):
 
     # set output
     def forward(self, x, train=True):
-        if len(x) == 1:
-            x = x[0]
+        if hasattr(x, 'len'):
+            if len(x) == 1:
+                x = x[0]
         output = reduce(lambda a, b: b.forward(a, train=train), [x] + self.layers)
 
         return output
