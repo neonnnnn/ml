@@ -8,27 +8,22 @@ from theano.compile.sharedvalue import SharedVariable
 
 
 def sharedzeros(shape, name=None):
-    return theano.shared(np.zeros(shape, dtype=theano.config.floatX),
-                         borrow=True,
-                         name=name)
+    return theano.shared(np.zeros(shape, dtype=theano.config.floatX), borrow=True, name=name)
 
 
 def sharedones(shape, name=None):
-    return theano.shared(np.ones(shape, dtype=theano.config.floatX),
-                         borrow=True,
-                         name=name)
+    return theano.shared(np.ones(shape, dtype=theano.config.floatX), borrow=True, name=name)
 
 
 def sharedasarray(input, name=None):
     if input is None or isinstance(input, SharedVariable):
         return input
     else:
-        return theano.shared(np.asarray(input, dtype=theano.config.floatX),
-                             borrow=True,
-                             name=name)
+        return theano.shared(np.asarray(input, dtype=theano.config.floatX), borrow=True, name=name)
 
 
 def variable(x, name=None):
+    print(x)
     if x.ndim == 1:
         if x.dtype == theano.config.floatX:
             ret = T.vector(name=name)
