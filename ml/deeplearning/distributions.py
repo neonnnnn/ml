@@ -76,7 +76,8 @@ class Gaussian(Distribution):
         if mode == 'train':
             mean, logvar = self.forward(x, sampling=False, train=True)
             log_likelihood = T.mean(self.log_likelihood(y, mean, logvar))
-            updates = self.get_updates(-log_likelihood, self.params)
+            updates = self.opt.get_updates(-log_likelihood, self.params)
+            updates += self.get_updates()
             return theano.function(inputs=[x], outputs=[-log_likelihood],
                                    updates=updates, name=mode)
         elif mode == 'pred' or 'mean':
@@ -128,7 +129,7 @@ class Bernoulli(Distribution):
         return self.updates
 
     def forward(self, x, sampling=False, train=True):
-        if self.networks is not None:
+        if self.network is not None:
             nn_output = self.network.forward(x, train=train)
         else:
             nn_output = x
@@ -143,7 +144,8 @@ class Bernoulli(Distribution):
         if mode == 'train':
             mean = self.forward(x, sampling=False, train=True)
             log_likelihood = T.mean(self.log_likelihood(y, mean))
-            updates = self.get_updates(-log_likelihood, self.params)
+            updates = self.opt.get_updates(-log_likelihood, self.params)
+            updates += self.get_updates()
             return theano.function(inputs=[x], outputs=[-log_likelihood], updates=updates)
         elif mode == 'pred':
             mean = self.forward(x, sampling=False, train=False)
