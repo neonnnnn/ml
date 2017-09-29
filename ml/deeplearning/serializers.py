@@ -30,7 +30,6 @@ def save(model, f):
 
 def _save(model, f):
     f.attrs['name'] = model.__class__.__name__
-    print(f.attrs['name'])
     f.attrs['config'] = json.dumps(model.get_config(), default=lambda x: None).encode('utf-8')
     if isinstance(model, Model):
         rng_group = f.create_group('rng')

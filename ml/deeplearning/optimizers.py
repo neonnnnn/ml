@@ -1,5 +1,6 @@
+from __future__ import absolute_import
 import theano.tensor as T
-from theanoutils import sharedasarray, sharedzeros
+from .theanoutils import sharedasarray, sharedzeros
 from abc import ABCMeta, abstractmethod
 
 

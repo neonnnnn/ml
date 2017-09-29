@@ -15,6 +15,8 @@ if hasattr(inspect, 'signature'):
     from inspect import signature
 else:
     from funcsigs import signature
+if six.PY3:
+    from functools import reduce
 
 
 class Model(object):
@@ -80,8 +82,7 @@ class Model(object):
 
     def get_updates(self):
         updatelayers = filter(
-            lambda x: (hasattr(x, 'get_updates') and (not isinstance(x, Optimizer))),
-            self.__dict__.values()
+            lambda x: (hasattr(x, 'get_updates') and (not isinstance(x, Optimizer))), self.__dict__.values()
         )
         for layer in updatelayers:
             self.updates += layer.get_updates()

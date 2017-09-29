@@ -1,10 +1,9 @@
+from __future__ import absolute_import
 from abc import ABCMeta, abstractmethod
-from layers import Layer
-import numpy as np
+from .layers import Layer
 import theano
 import theano.tensor as T
-from theanoutils import sharedasarray, sharedones, sharedzeros
-import inspect
+from .theanoutils import sharedasarray, sharedones, sharedzeros
 
 
 class Normalization(Layer):
@@ -31,7 +30,7 @@ class Normalization(Layer):
         return self.forward(x, train)
 
     def get_layers_with_names_configs(self):
-        return [self.layer], 'NormalizedLayer', {'NormalizedLayer': self.layer.get_config()}
+        return [self.layer], 'layer', {'layer': self.layer.get_config()}
 
 
 class BatchNormalization(Normalization):
