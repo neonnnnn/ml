@@ -1,15 +1,20 @@
+from __future__ import absolute_import
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import theano
 import theano.tensor as T
-from theanoutils import sharedasarray, sharedones, sharedzeros
-import initializations
-import activations
-import inspect
+from .theanoutils import sharedasarray, sharedones, sharedzeros
+from . import initializations
+from . import activations
 from theano.tensor.signal import pool
 from theano.tensor.nnet import conv2d
 from theano.sandbox.cuda.dnn import dnn_conv, GpuDnnConvDesc, GpuDnnConvGradI
 from theano.sandbox.cuda.basic_ops import gpu_alloc_empty, gpu_contiguous
+import inspect
+if hasattr(inspect, 'signature'):
+    from inspect import signature
+else:
+    from funcsigs import signature
 
 
 class Layer(object):
@@ -27,10 +32,10 @@ class Layer(object):
         return self.forward(x, train)
 
     def get_config(self):
-        config = {'class': self.__class__.__name__,
-                  'n_in': self.n_in,
-                  'n_out': self.n_out,
-                  }
+        init_args_keys = signature(self.__init__).parameters.keys()
+        config = {'class': self.__class__.__name__}
+        for key in init_args_keys:
+            config.update({key: self.__dict__[key]})
         return config
 
 
@@ -72,8 +77,7 @@ class Dense(Layer):
 
     def set_params(self):
         if self.W is None:
-            self.W = sharedasarray(self.init(self, (self.n_in, self.n_out)),
-                                   'W')
+            self.W = sharedasarray(self.init(self, (self.n_in, self.n_out)), 'W')
         if not self.bias:
             self.params = [self.W]
         else:
@@ -122,23 +126,24 @@ class Dense(Layer):
 
 
 class Activation(Layer):
-    def __init__(self, activation_name, *args):
+    def __init__(self, activation_name, act_param=None):
         self.n_in = None
         self.n_out = None
+        self.activation_name = activation_name
         self.afunc = activations.get_activation(activation_name)
-        self.act_param = args
-
+        self.act_param = act_param
+    """
     def get_config(self):
         config = super(Activation, self).get_config()
         config.update({'act': self.afunc.__name__})
         return config
-
+    """
     def set_shape(self, n_in):
         self.n_in = n_in
         self.n_out = n_in
 
     def forward(self, x, train=True):
-        if inspect.getargspec(self.afunc)[0] and self.act_param:
+        if signature(self.afunc).parameters.keys and self.act_param is not None:
             return self.afunc(x, self.act_param)
         else:
             return self.afunc(x)
@@ -366,12 +371,10 @@ class Conv(Layer):
             raise TypeError('type(b_values) must be numpy.ndarray.')
 
         if b_values.shape != self.filter_shape[0]:
-            raise ValueError('b_balues.shape must be (nb_filter,), i.e. {0}.'
-                             .format((self.filter_shape[0],)))
+            raise ValueError('b_balues.shape must be (nb_filter,), i.e. {0}.'.format((self.filter_shape[0],)))
 
         if b_values.dtype != theano.config.floatX:
-            raise ValueError('b_values.dtype must be {0}.'
-                             .format(theano.config.floatX))
+            raise ValueError('b_values.dtype must be {0}.'.format(theano.config.floatX))
 
         if self.b is not None:
             self.b.set_value(b_values)
@@ -466,8 +469,7 @@ class Deconv(Conv):
         sup = inf + np.array(self.subsample) - 1
         if not inf[0] <= self.n_out[1] <= sup[0]:
             if inf[1] <= self.n_out[2] <= sup[1]:
-                raise ValueError('impossible output_shape. output = '
-                                 'subsample * (x - 1) + filter - 2 * pad + a, '
+                raise ValueError('impossible output_shape. output =  subsample * (x - 1) + filter - 2 * pad + a, '
                                  'a \\in {0, \\ldots , subsample-1}')
 
     def set_params(self):
@@ -514,8 +516,7 @@ class DeconvCUDNN(Deconv):
                               img.shape[2] * self.subsample[0],
                               img.shape[3] * self.subsample[1])
         desc = gpudnnconvdesc(out.shape, kerns.shape)
-        return (GpuDnnConvGradI()(kerns, img, out, desc)
-                + self.b.dimshuffle('x', 0, 'x', 'x'))
+        return (GpuDnnConvGradI()(kerns, img, out, desc) + self.b.dimshuffle('x', 0, 'x', 'x'))
 
 
 class Pool(Layer):
