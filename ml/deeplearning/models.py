@@ -1,14 +1,20 @@
+from __future__ import absolute_import
 import sys
+import six
 import timeit
 import numpy as np
 import theano
-from optimizers import Optimizer
-from layers import Layer, Concat
-from theanoutils import variable, run, run_on_batch
+from .optimizers import Optimizer
+from .layers import Layer, Concat
+from .theanoutils import variable, run, run_on_batch
 from ..utils import num_of_error
-import inspect
 from abc import ABCMeta, abstractmethod
 from collections import defaultdict, OrderedDict
+import inspect
+if hasattr(inspect, 'signature'):
+    from inspect import signature
+else:
+    from funcsigs import signature
 
 
 class Model(object):
@@ -30,7 +36,7 @@ class Model(object):
         self.pred_function = None
         self.test_function = None
 
-        # Because the instance of Model class is set shape, rng and parameters
+        # Because the instance of Model class should be set shape, rng and parameters
         # in __init__, Model class doesn't have set_shape, set_rng and
         # set_params methods.
         self._set_shape()
@@ -41,7 +47,10 @@ class Model(object):
         return self.forward(x, train)
 
     def get_config(self):
+        init_args_keys = signature(self.__init__).parameters.keys()
         config = {'class': self.__class__.__name__}
+        for key in init_args_keys:
+            config.update({key: self.__dict__[key]})
         return config
 
     def get_layers_with_names_configs(self):
@@ -53,21 +62,21 @@ class Model(object):
         return paramslayers, names, config
 
     def _set_params(self):
-        paramslayers = filter(lambda x: hasattr(x, 'params'),
-                              self.__dict__.values())
-        map(lambda x: x.set_params(),
-            filter(lambda x: hasattr(x, 'set_params'), paramslayers))
-        self.params = reduce(lambda x, y: x + y,
-                             map(lambda x: x.params, paramslayers))
+        paramslayers = filter(lambda x: hasattr(x, 'params'), self.__dict__.values())
+        for layer in paramslayers:
+            if hasattr(layer, 'set_params'):
+                layer.set_params()
+            self.params += layer.params
 
     def _set_shape(self):
         layers = filter(lambda x: hasattr(x, 'set_shape'), self.__dict__.values())
-        map(lambda x: x.set_shape(x.n_in), layers)
+        for layer in layers:
+            layer.set_shape(layer.n_in)
 
     def _set_rng(self):
-        rnglayers = filter(lambda x: hasattr(x, 'set_rng'),
-                           self.__dict__.values())
-        map(lambda x: x.set_rng(self.rng), rnglayers)
+        rnglayers = filter(lambda x: hasattr(x, 'set_rng'), self.__dict__.values())
+        for layer in rnglayers:
+            layer.set_rng(self.rng)
 
     def get_updates(self):
         updatelayers = filter(
