@@ -1,5 +1,7 @@
+from __future__ import absolute_import
+
 import theano.tensor as T
-from ml import utils
+from .. import utils
 from abc import ABCMeta, abstractmethod
 
 

@@ -1,11 +1,12 @@
+from __future__ import absolute_import
 import theano
 import theano.tensor as T
-from models import Model
+from .models import Model
 from abc import ABCMeta, abstractmethod
-from activations import softmax, sigmoid
-from sampler import gaussian, categorical, bernoulli
+from .activations import softmax, sigmoid
+from .sampler import gaussian, categorical, bernoulli
 import math
-from theanoutils import sharedasarray, sharedzeros, variable
+from .theanoutils import sharedasarray, sharedzeros, variable
 
 
 class Distribution(Model):
@@ -167,7 +168,7 @@ class Bernoulli(Distribution):
 
 class Categorical(Bernoulli):
     def forward(self, x, sampling=False, train=True, *args, **kwargs):
-        if self.networks is not None:
+        if self.network is not None:
             nn_output = self.network.forward(x, train=train)
         else:
             nn_output = x

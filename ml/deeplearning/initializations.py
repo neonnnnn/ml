@@ -1,6 +1,7 @@
 from __future__ import absolute_import
+from __future__ import absolute_import
 import numpy as np
-from .. import utils
+from ..utils import get_from_module
 
 
 def uniform(scale=0.05):
@@ -49,4 +50,4 @@ def he_conv_normal():
 
 
 def get_init(identifier):
-    return utils.get_from_module(identifier, globals(), 'initializations')
+    return get_from_module(identifier, globals(), 'initializations')

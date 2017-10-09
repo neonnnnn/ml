@@ -1,8 +1,9 @@
+from __future__ import absolute_import
 from abc import ABCMeta, abstractmethod
-from layers import Layer
+from .layers import Layer
 import theano
 import theano.tensor as T
-from theanoutils import sharedasarray, sharedones, sharedzeros
+from .theanoutils import sharedasarray, sharedones, sharedzeros
 
 
 class Normalization(Layer):
