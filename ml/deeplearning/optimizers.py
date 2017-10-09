@@ -202,3 +202,61 @@ class AdaMax(Optimizer):
             updates.append((p, p_t))
 
         return updates
+
+
+class Eve(Adam):
+    def __init__(self,
+                 lr=0.001,
+                 beta1=0.9,
+                 beta2=0.999,
+                 beta3=0.999,
+                 k=0.1,
+                 K=10,
+                 eps=1e-8,
+                 clipping=None):
+        super(Eve, self).__init__(lr, beta1, beta2, eps, clipping)
+        self.beta3 = beta3
+        self.k = k
+        self.K = K
+        self.f_hat = None
+        self.c = None
+        self.d = None
+
+    def get_updates(self, cost, params):
+        grads = self.get_gradients(cost, params)
+        updates = []
+        if self.i is None:
+            self.i = sharedasarray(0)
+        if self.f_hat is None:
+            self.f_hat = sharedasarray(0)
+        if self.ms is None:
+            self.ms = [sharedzeros(p.get_value().shape) for p in params]
+        if self.vs is None:
+            self.vs = [sharedzeros(p.get_value().shape) for p in params]
+        if self.d is None:
+            self.d = sharedasarray(1)
+
+        t = self.i+1
+        updates.append((self.i, self.i + 1))
+        delta_t = T.switch(cost >= self.f_hat, self.K+1, 1./self.K+1)
+        Delta_t = T.switch(cost >= self.f_hat, self.k+1, 1./self.k+1)
+        lr_t = self.lr / (1.-T.pow(self.beta1, t))
+        c_t = T.switch(t > 1, T.minimum(T.maximum(delta_t, cost / self.f_hat), Delta_t), 1)
+        f_fat_t = T.switch(t > 1, c_t * self.f_hat, cost)
+        d_t = T.switch(t > 1,
+                       (self.beta3*self.d + (1-self.beta3)*abs(f_fat_t-self.f_hat)/T.minimum(f_fat_t, self.f_hat)),
+                       1)
+
+        updates.append((self.d, d_t))
+        updates.append((self.f_hat, f_fat_t))
+
+        for p, g, m, v in zip(params, grads, self.ms, self.vs):
+            m_t = self.beta1*m + (1.-self.beta1)*g
+            v_t = (self.beta2*v) + (1.-self.beta2)*(g**2)
+            p_t = p - lr_t * m_t / (d_t * T.sqrt(v_t) + self.eps)
+
+            updates.append((m, m_t))
+            updates.append((v, v_t))
+            updates.append((p, p_t))
+
+        return updates
