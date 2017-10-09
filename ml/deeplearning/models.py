@@ -236,11 +236,11 @@ class Sequential(Model):
 
         self.n_out = self.layers[-1].n_out
 
-    def concat(self, layers, add_params=True):
+    def concat(self, layers, axis=1, add_params=True):
         if len(self.layers) != 0:
             raise Exception('concat must do before add.')
 
-        concat = Concat(layers)
+        concat = Concat(layers, axis=axis)
 
         if isinstance(add_params, bool):
             add_params = [add_params] * len(layers)

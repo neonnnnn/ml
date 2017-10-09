@@ -1,7 +1,7 @@
 import numpy as np
 import theano
 import theano.tensor as T
-from ..utils import progbar
+from ml.utils import progbar
 import timeit
 import scipy.sparse as sp
 from theano.compile.sharedvalue import SharedVariable
@@ -23,7 +23,6 @@ def sharedasarray(input, name=None):
 
 
 def variable(x, name=None):
-    print(x)
     if x.ndim == 1:
         if x.dtype == theano.config.floatX:
             ret = T.vector(name=name)
@@ -34,7 +33,6 @@ def variable(x, name=None):
     else:
         ret = getattr(T, 'tensor'+str(x.ndim))(name=name)
     return ret
-
 
 # running 1 epoch
 def run(inputs, function, iprint=True):

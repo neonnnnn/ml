@@ -1,10 +1,8 @@
 from abc import ABCMeta, abstractmethod
 from layers import Layer
-import numpy as np
 import theano
 import theano.tensor as T
 from theanoutils import sharedasarray, sharedones, sharedzeros
-import inspect
 
 
 class Normalization(Layer):
@@ -31,12 +29,11 @@ class Normalization(Layer):
         return self.forward(x, train)
 
     def get_layers_with_names_configs(self):
-        return [self.layer], 'NormalizedLayer', {'NormalizedLayer': self.layer.get_config()}
+        return [self.layer], 'layer', {'layer': self.layer.get_config()}
 
 
 class BatchNormalization(Normalization):
-    def __init__(self, layer, eps=1e-5, trainable=True, momentum=0.99,
-                 moving=True):
+    def __init__(self, layer, eps=1e-8, trainable=True, momentum=0.99, moving=True):
         super(BatchNormalization, self).__init__(layer)
         self.mean_inf = None
         self.var_inf = None
@@ -48,31 +45,6 @@ class BatchNormalization(Normalization):
         self.trainable = trainable
         self.moving = moving
         self.updates = None
-
-    def __setstate__(self, state):
-        n_in, n_out, mean_inf, var_inf, gamma, beta, momentum, eps = state
-        self.n_in = n_in
-        self.n_out = n_out
-        self.mean_inf = mean_inf
-        self.var_inf = var_inf
-        self.gamma = gamma
-        self.beta = beta
-        self.momentum = momentum
-        self.eps = eps
-
-        if self.mean_inf is not None:
-            self.moving = True
-        else:
-            self.moving = False
-        if not isinstance(self.gamma, int):
-            self.trainable = True
-        else:
-            self.trainable = False
-        self.set_params()
-
-    def __getstate__(self):
-        return (self.n_in, self.n_out, self.mean_inf, self.var_inf,
-                self.gamma, self.beta, self.momentum, self.eps)
 
     def get_updates(self):
         return self.updates

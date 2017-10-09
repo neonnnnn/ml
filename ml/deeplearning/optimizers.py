@@ -166,29 +166,6 @@ class Adam(Optimizer):
 
         return updates
 
-    def get_updates_value(self, cost, params):
-        grads = self.get_gradients(cost, params)
-        updates = []
-        if self.i is None:
-            self.i = sharedasarray(0)
-
-        t = self.i+1
-        lr_t = self.lr * T.sqrt(1-self.beta2**t) / (1-self.beta1**t)
-        eps_hat = self.eps * T.sqrt(1-self.beta2**t)
-        if self.ms is None:
-            self.ms = [sharedzeros(p.get_value().shape) for p in params]
-        if self.vs is None:
-            self.vs = [sharedzeros(p.get_value().shape) for p in params]
-
-        for p, g, m, v in zip(params, grads, self.ms, self.vs):
-            if self.clipping is not None:
-                g = T.clip(g, *self.clipping)
-            m_t = (self.beta1*m) + (1.-self.beta1)*g
-            v_t = (self.beta2*v) + (1.-self.beta2)*(g**2)
-            updates.append(lr_t*m_t/(T.sqrt(v_t)+eps_hat))
-
-        return updates
-
 
 class AdaMax(Optimizer):
     def __init__(self, lr=0.002, beta1=0.9, beta2=0.999, clipping=None):
@@ -205,7 +182,7 @@ class AdaMax(Optimizer):
         updates = []
         if self.i is None:
             self.i = sharedasarray(0)
-            updates.append((self.i, self.i+1))
+        updates.append((self.i, self.i+1))
         
         t = self.i+1
         lr_t = self.lr / (1.-T.pow(self.beta1, t))

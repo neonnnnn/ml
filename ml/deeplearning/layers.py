@@ -248,11 +248,6 @@ class Dropout(Layer):
         self.p = p
         self.srng = None
 
-    def get_config(self):
-        config = super(Dropout, self).get_config()
-        config.update({'p': self.p})
-        return config
-
     def set_rng(self, rng):
         self.rng = rng
         self.srng = T.shared_randomstreams.RandomStreams(rng.randint(9999))
@@ -283,6 +278,9 @@ class Conv(Layer):
                  rng=None,
                  W=None,
                  b=None):
+        self.nb_filter = None
+        self.nb_heigt = nb_height
+        self.nb_weight = nb_width
         self.n_in = n_in
         self.n_out = n_out
         self.rng = rng
@@ -607,10 +605,10 @@ class Decoder(Layer):
 
 
 class Reshape(Layer):
-    def __init__(self, shape, layer=None):
+    def __init__(self, n_out, layer=None):
         self.layer = layer
         self.n_in = None
-        self.n_out = tuple(shape)
+        self.n_out = tuple(n_out)
         self.params = None
 
     def set_rng(self, rng):
