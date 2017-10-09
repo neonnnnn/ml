@@ -35,6 +35,19 @@ def variable(x, name=None):
         ret = getattr(T, 'tensor'+str(x.ndim))(name=name)
     return ret
 
+
+def log_sum_exp(x, axis=0, keepdims=False):
+    x_max = T.max(x, axis=axis, keepdims=True)
+    _x_max = T.max(x, axis=axis, keepdims=keepdims)
+    return T.log(T.sum(T.exp(x - x_max), axis=axis, keepdims=keepdims)) + _x_max
+
+
+def log_mean_exp(x, axis=0, keepdims=False):
+    x_max = T.max(x, axis=axis, keepdims=True)
+    _x_max = T.max(x, axis=axis, keepdims=keepdims)
+    return T.log(T.mean(T.exp(x - x_max), axis=axis, keepdims=keepdims)) + _x_max
+
+
 # running 1 epoch
 def run(inputs, function, iprint=True):
     output = []
