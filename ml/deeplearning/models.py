@@ -32,8 +32,6 @@ class Model(object):
             setattr(self, key, value)
 
         self.opt = None
-        self.train_loss = None
-        self.test_loss = None
         self.train_function = None
         self.pred_function = None
         self.test_function = None
@@ -82,16 +80,15 @@ class Model(object):
 
     def get_updates(self):
         updatelayers = filter(
-            lambda x: (hasattr(x, 'get_updates') and (not isinstance(x, Optimizer))), self.__dict__.values()
+            lambda x: (hasattr(x, 'get_updates') and (not isinstance(x, Optimizer))),
+            self.__dict__.values()
         )
         for layer in updatelayers:
             self.updates += layer.get_updates()
         return self.updates
 
-    def compile(self, opt, train_loss, test_loss=None):
+    def compile(self, opt):
         self.opt = opt
-        self.train_loss = train_loss
-        self.test_loss = test_loss
         self.train_function = None
         self.pred_function = None
         self.test_function = None
@@ -134,16 +131,14 @@ class Model(object):
                 n_space = 8 - len(str(i+1))
                 sys.stdout.write('{0}{1}'.format(i+1, ' ' * n_space))
                 n_space = 13 - len('{0:.5f}'.format(train_loss[-1]))
-                sys.stdout.write('{0:.5f}{1}'.format(train_loss[-1],
-                                                     ' ' * n_space))
+                sys.stdout.write('{0:.5f}{1}'.format(train_loss[-1], ' ' * n_space))
             # if there are valid data, calc valid_error
             if valid_batches is not None:
                 valid_loss += [self.__test(valid_batches)]
                 # if this_valid_loss is better than best_valid_loss
                 if iprint:
                     n_space = 13 - len('{0:.5f}'.format(valid_loss[-1]))
-                    sys.stdout.write('{0:.5f}{1}'.format(valid_loss[-1],
-                                                         ' ' * n_space))
+                    sys.stdout.write('{0:.5f}{1}'.format(valid_loss[-1], ' ' * n_space))
             if iprint:
                 end_epoch = timeit.default_timer()
                 sys.stdout.write('{0:.2f}s\n'.format(end_epoch - start_epoch))
@@ -217,6 +212,14 @@ class Sequential(Model):
         self.test_function = None
         self.updates = []
         self.id_dict = defaultdict(int)
+
+    def compile(self, opt, train_loss, test_loss=None):
+        self.opt = opt
+        self.train_loss = train_loss
+        self.test_loss = test_loss
+        self.train_function = None
+        self.pred_function = None
+        self.test_function = None
 
     # add layer
     def add(self, this_layer, add_params=True):
