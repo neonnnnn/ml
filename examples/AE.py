@@ -4,31 +4,39 @@ from ml.deeplearning.layers import Dense, Activation, Decoder
 from ml.deeplearning.optimizers import SGD
 from ml.deeplearning.objectives import SquaredError
 from ml.deeplearning.models import Sequential
-from ml import utils
+from ml.utils import visualize, BatchIterator
+
+
+def autoencoder(n_in, n_hidden=500, rng=np.random.RandomState(1234),
+                activations=['relu', 'sigmoid']):
+    clf = Sequential(n_in, rng)
+    clf.add(Dense(n_hidden))
+    clf.add(Activation(activations[0]))
+    clf.add(Decoder(clf.layers[0]))
+    clf.add(Activation(activations[1]))
+    
+    return clf
+
 if __name__ == '__main__':
-    rng = np.random.RandomState(1234)
     dataset = load_data()
-    x_train, y_train = dataset[0]
-    x_valid, y_valid = dataset[1]
-    x_test, y_test = dataset[2]
-    imshape = (1, 28, 28)
+    X_train, y_train = dataset[0]
+    X_valid, y_valid = dataset[1]
+    X_test, y_test = dataset[2]
 
     opt = SGD(lr=0.01, momentum=0.9)
     loss = SquaredError()
 
-    clf = Sequential(28*28, rng)
-
-    clf.add(Dense(500))
-    clf.add(Activation('relu'))
-    clf.add(Decoder(clf.layers[0]))
-    clf.add(Activation('sigmoid'))
-    clf.compile(opt=opt, loss=loss)
-
-    clf.fit(x_train, x_train)
+    clf = autoencoder(28*28)
+    clf.compile(opt=opt, train_loss=loss)
+    train_batches = BatchIterator([X_train, X_train], batch_size=128,
+                                  shuffle=True)
+    valid_batches = BatchIterator([X_valid, X_valid], batch_size=128,
+                                  shuffle=False)
+    clf.fit(train_batches, 100, valid_batches)
 
     W = clf.layers[0].W.get_value().T.reshape(500, 28, 28)
-    utils.visualize(W, (10, 10), 'imgs/autoencoder_W.png')
+    visualize(W, (10, 10), 'imgs/autoencoder_W.png')
 
-    output = clf.predict(x_test).reshape(x_test.shape[0], 28, 28)
+    output = clf.predict(X_test).reshape(X_test.shape[0], 28, 28)
 
-    utils.visualize(output, (10, 10),  'imgs/autoencoder_output.png')
+    visualize(output, (10, 10),  'imgs/autoencoder_output.png')

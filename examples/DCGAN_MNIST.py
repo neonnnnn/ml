@@ -10,8 +10,8 @@ import sys
 import timeit
 
 
-def generator(rng, batch_size):
-    g = Sequential(100, rng=rng, iprint=False)
+def generator(rng):
+    g = Sequential(100, rng=rng)
     g.add(Dense(64*2*7*7, init='normal'))
     g.add(BatchNormalization(moving=True))
     g.add(Activation('relu'))
@@ -23,13 +23,12 @@ def generator(rng, batch_size):
     g.add(DeconvCUDNN(1, 5, 5, (1, 28, 28), init='normal', subsample=(2, 2),
                       border_mode=(2, 2)))
     g.add(Activation('tanh'))
-    g.compile(batch_size=batch_size, nb_epoch=1)
 
     return g
 
 
-def discriminator(rng, batch_size):
-    d = Sequential((1, 28, 28), rng=rng, iprint=False)
+def discriminator(rng):
+    d = Sequential((1, 28, 28), rng=rng)
     d.add(Conv(64, 5, 5, init='normal', subsample=(2, 2), border_mode=(2, 2)))
     d.add(Activation('leakyrelu'))
     d.add(Conv(64, 5, 5, init='normal', subsample=(2, 2), border_mode=(2, 2)))
@@ -38,8 +37,7 @@ def discriminator(rng, batch_size):
     d.add(Flatten())
     d.add(Dense(1, init='normal'))
     d.add(Activation('sigmoid'))
-    d.compile(batch_size=batch_size, nb_epoch=1,
-              loss=[CrossEntropy(), L2Regularization(weight=1e-5)],
+    d.compile(train_loss=[CrossEntropy(), L2Regularization(weight=1e-5)],
               opt=Adam(lr=0.0002, beta1=0.5))
 
     return d
@@ -59,18 +57,18 @@ def train_dcgan_mnist():
     filename = 'imgs/DCGAN/DCGAN_MNIST_'
     # make discriminator
     rng1 = np.random.RandomState(1)
-    d = discriminator(rng1, batch_size)
+    d = discriminator(rng1)
 
     # make generator
     rng2 = np.random.RandomState(1234)
-    g = generator(rng2, batch_size)
+    g = generator(rng2)
 
     # concat models for training generator
-    concat_g = Sequential(100, rng2, iprint=False)
+    concat_g = Sequential(100, rng2)
     concat_g.add(g)
     concat_g.add(d, add_params=False)
-    concat_g.compile(batch_size=batch_size, nb_epoch=1,
-                     loss=[CrossEntropy(), L2Regularization(weight=1e-5)],
+    concat_g.compile(train_loss=[CrossEntropy(),
+                                 L2Regularization(weight=1e-5)],
                      opt=Adam(lr=0.0002, beta1=0.5))
 
     # make label
@@ -100,14 +98,14 @@ def train_dcgan_mnist():
         s = timeit.default_timer()
         for j in xrange(50000/batch_size):
             # train discriminator
-            d.onebatch_fit(X_train[start:start+batch_size], ones)
-            d.onebatch_fit(fake, zeros)
+            d.fit_on_batch(X_train[start:start+batch_size], ones)
+            d.fit_on_batch(fake, zeros)
 
             # train generator
             if j % k == 0:
                 z = np.random.uniform(low=-1, high=1, size=batch_size*100)
                 z = z.reshape(batch_size, 100).astype(np.float32)
-                concat_g.onebatch_fit(z, ones)
+                concat_g.fit_on_batch(z, ones)
             # generate fake
             z = np.random.uniform(low=-1, high=1, size=batch_size*100)
             z = z.reshape(batch_size, 100).astype(np.float32)

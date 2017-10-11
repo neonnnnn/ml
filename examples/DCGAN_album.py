@@ -58,7 +58,7 @@ def discriminator(rng, batch_size):
     d.add(BatchNormalization(moving=True, trainable=False))
     d.add(Activation('leakyrelu'))
 
-    d.add(ConvCUDNN(512, 8, 8, init='normal', subsample=(2, 2),
+    d.add(ConvCUDNN(512, 4, 4, init='normal', subsample=(2, 2),
                     border_mode=(1, 1)))
     d.add(BatchNormalization(moving=True, trainable=False))
     d.add(Activation('leakyrelu'))

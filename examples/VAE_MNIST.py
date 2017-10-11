@@ -1,110 +1,79 @@
-import theano.tensor as T
-import theano
 import numpy as np
 import load_mnist
 from ml.deeplearning.layers import Dense, Activation
-from ml.deeplearning.optimizers import SGD
-from ml.deeplearning.objectives import CrossEntropy, Regularization
-from ml.deeplearning.models import Sequential, Model, run
-from ml import utils
-import sys
+from ml.deeplearning.optimizers import Adam
+from ml.deeplearning.models import Sequential
+from ml.deeplearning.distributions import Gaussian, Bernoulli
+from ml.deeplearning.normalizations import BatchNormalization
+from ml.utils import BatchIterator, saveimg
+from VAE import VAE
+from IWAE import IWAE
+from ml.deeplearning.initializations import normal
+from ml.deeplearning.serializers import save
 
 
-class KLD(Regularization):
-    def __init__(self, z_dim, mode=1):
-        super(KLD, self).__init__(weight=1.0)
-        self.z_dim = z_dim
-        self.mode = mode
+def train_vae_mnist(X_train, X_valid, z_dim, n_hidden, lr, activation,
+                    epoch, batch_size):
+    saveimg(X_valid[:batch_size].reshape(batch_size, 28, 28)*255.0, (10, 10),
+            'imgs/VAE/MNIST_Valid.png')
 
-    def calc(self, input):
-        mean = input[:, :self.z_dim]
-        log_var = input[:, self.z_dim:]
-        output = -T.sum(1+log_var-T.exp(log_var)-mean**2, axis=1) * 0.5
-        if self.mode:
-            output = T.mean(output)
-        else:
-            output = T.sum(output)
-        return output
+    rng = np.random.RandomState(1)
+
+    encoder = Sequential(X_train.shape[1], rng)
+    encoder.add(BatchNormalization(Dense(n_hidden, init=normal(0, 0.001))))
+    encoder.add(Activation(activation))
+    encoder.add(BatchNormalization(Dense(n_hidden, init=normal(0, 0.001))))
+    encoder.add(Activation(activation))
+    encoder = Gaussian(mean_layer=Dense(z_dim), logvar_layer=Dense(z_dim),
+                       network=encoder, rng=rng)
+    decoder = Sequential(z_dim, rng)
+    decoder.add(BatchNormalization(Dense(n_hidden, init=normal(0, 0.001))))
+    decoder.add(Activation(activation))
+    decoder.add(BatchNormalization(Dense(n_hidden, init=normal(0, 0.001))))
+    decoder.add(Activation(activation))
+    decoder = Bernoulli(mean_layer=Dense(X_train.shape[1]), network=decoder, rng=rng)
+
+    vae = IWAE(rng, encoder=encoder, decoder=decoder)
+    opt = Adam(lr)
+    vae.compile(opt=opt, train_loss=None)
+
+    z_plot = np.random.standard_normal((batch_size, z_dim)).astype(np.float32)
+    z_plot[-1] = -z_plot[0]
+
+    for i in range(batch_size):
+        z_plot[i] = ((batch_size-i)*z_plot[0] + i*z_plot[99])/batch_size
+
+    def binarize(x):
+        return rng.binomial(1, x).astype(np.float32)
+
+    train_batches = BatchIterator([X_train], batch_size, aug=binarize)
+    z_batch = BatchIterator(z_plot, batch_size)
+    X_valid_bacth = BatchIterator(X_valid[:batch_size], batch_size, aug=binarize)
+
+    # training
+    for i in xrange(epoch/10):
+        print('epoch:{0}'.format(i+1))
+        vae.fit(train_batches, epoch=10, iprint=True)
+        reconstract = vae.predict(X_valid_bacth)
+        print(np.sum((X_valid[:100] - reconstract)**2)/100.)
+        generation = decoder.predict(z_batch)
+        saveimg(255.*generation.reshape(100, 28, 28), (10, 10),
+                'imgs/VAE/IWAE_MNIST_epoch' + str((i+1)*10) + '.png')
+        saveimg(255.*reconstract.reshape(100, 28, 28), (10, 10),
+                'imgs/VAE/IWAE_MNIST_reconstruct_epoch' + str((i+1)*10) + '.png')
+    return vae
 
 
-class VAE(Model):
-    def __init__(self, rng, encoder, decoder, z_dim):
-        self.z_dim = z_dim
-        super(VAE, self).__init__(rng, encoder=encoder, decoder=decoder)
-
-    def forward(self, x, train):
-        srng = T.shared_randomstreams.RandomStreams(self.rng.randint(999999))
-        encode = self.encoder.forward(x, train)
-        epsilon = srng.normal(size=(encode.shape[0], self.z_dim), avg=0,
-                              std=1., dtype=encode.dtype)
-        z = (encode[:, :self.z_dim]
-             + epsilon*T.exp(0.5*encode[:, self.z_dim:]))
-        decode = self.decoder.forward(z, train)
-        return encode, decode
-
-    def function(self, opt=None, train=True):
-        x = T.matrix('x')
-        x = x.reshape((100, 784))
-        kld = KLD(self.z_dim)
-        ce = CrossEntropy(mode=1)
-        encode, decode = self.forward(x, train)
-        if train:
-            cost = ce.calc(x, decode) + kld.calc(encode)
-            updates = self.updates(cost, opt)
-            function = theano.function(inputs=[x], outputs=[cost],
-                                       updates=updates)
-        else:
-            function = theano.function(inputs=[x], outputs=[decode])
-
-        return function
-
-
-def train_vae_mnist():
+def main():
     dataset = load_mnist.load_data()
     X_train, y_train = dataset[0]
     X_valid, y_valid = dataset[1]
-    utils.saveimg(X_valid[:100].reshape(100, 28, 28)*255.0, (10, 10),
-                  'imgs/VAE/MNIST_Valid.png')
-
     batch_size = 100
-    epoch = 500
-    rng = np.random.RandomState(1)
-    z_dim = 10
-
-    encoder = Sequential(28*28, rng, iprint=False)
-    encoder.add(Dense(500))
-    encoder.add(Activation('tanh'))
-    encoder.add(Dense(z_dim*2))
-
-    decoder = Sequential(z_dim, rng, iprint=False)
-    decoder.add(Dense(500))
-    decoder.add(Activation('tanh'))
-    decoder.add(Dense(28*28))
-    decoder.add(Activation('sigmoid'))
-    decoder.compile(batch_size=batch_size, nb_epoch=1)
-
-    vae = VAE(rng, encoder=encoder, decoder=decoder, z_dim=z_dim)
-    opt = SGD(lr=0.001, momentum=0.9)
-    trainfunction = vae.function(opt, True)
-    reconstractfunction = vae.function(opt=None, train=False)
-    z_plot = np.random.standard_normal((100, z_dim)).astype(np.float32)
-    train_iter = utils.BatchIterator(X_train, 100)
-
-    # train
-    for i in xrange(epoch):
-        print ('epoch:{0}'.format(i+1))
-        run(train_iter, trainfunction, True)
-        sys.stdout.write('\n')
-        if (i+1) % 500 == 0:
-            generation = 255.0 * decoder.predict(z_plot)
-            utils.saveimg(generation.reshape(100, 28, 28), (10, 10),
-                          'imgs/VAE/VAE_MNIST_epoch' + str(i+1) + '.png')
-            reconstract = 255.0 * reconstractfunction(X_valid[:100])
-            utils.saveimg(reconstract.reshape(100, 28, 28), (10, 10),
-                          ('imgs/VAE/VAE_MNIST_reconstruct_epoch'
-                           + str(i+1) + '.png')
-                          )
+    z_dim = 50
+    n_hidden = 600
+    epoch = 200
+    train_vae_mnist(X_train, X_valid, z_dim, n_hidden, 1e-3, 'softplus', epoch, batch_size)
 
 if __name__ == '__main__':
-    train_vae_mnist()
+    main()
 
