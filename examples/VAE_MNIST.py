@@ -20,22 +20,22 @@ def train_vae_mnist(X_train, X_valid, z_dim, n_hidden, lr, activation,
     rng = np.random.RandomState(1)
 
     encoder = Sequential(X_train.shape[1], rng)
-    encoder.add(BatchNormalization(Dense(n_hidden, init=normal(0, 0.001))))
+    encoder.add(Dense(n_hidden, init=normal(0, 0.001)))
     encoder.add(Activation(activation))
-    encoder.add(BatchNormalization(Dense(n_hidden, init=normal(0, 0.001))))
-    encoder.add(Activation(activation))
+    #encoder.add(BatchNormalization(Dense(n_hidden, init=normal(0, 0.001))))
+    #encoder.add(Activation(activation))
     encoder = Gaussian(mean_layer=Dense(z_dim), logvar_layer=Dense(z_dim),
                        network=encoder, rng=rng)
     decoder = Sequential(z_dim, rng)
-    decoder.add(BatchNormalization(Dense(n_hidden, init=normal(0, 0.001))))
+    decoder.add(Dense(n_hidden, init=normal(0, 0.001)))
     decoder.add(Activation(activation))
-    decoder.add(BatchNormalization(Dense(n_hidden, init=normal(0, 0.001))))
-    decoder.add(Activation(activation))
+    #decoder.add(BatchNormalization(Dense(n_hidden, init=normal(0, 0.001))))
+    #decoder.add(Activation(activation))
     decoder = Bernoulli(mean_layer=Dense(X_train.shape[1]), network=decoder, rng=rng)
 
     vae = IWAE(rng, encoder=encoder, decoder=decoder)
     opt = Adam(lr)
-    vae.compile(opt=opt, train_loss=None)
+    vae.compile(opt=opt)
 
     z_plot = np.random.standard_normal((batch_size, z_dim)).astype(np.float32)
     z_plot[-1] = -z_plot[0]
@@ -46,7 +46,7 @@ def train_vae_mnist(X_train, X_valid, z_dim, n_hidden, lr, activation,
     def binarize(x):
         return rng.binomial(1, x).astype(np.float32)
 
-    train_batches = BatchIterator([X_train], batch_size, aug=binarize)
+    train_batches = BatchIterator([X_train], batch_size)
     z_batch = BatchIterator(z_plot, batch_size)
     X_valid_bacth = BatchIterator(X_valid[:batch_size], batch_size, aug=binarize)
 
@@ -72,7 +72,7 @@ def main():
     z_dim = 50
     n_hidden = 600
     epoch = 200
-    train_vae_mnist(X_train, X_valid, z_dim, n_hidden, 1e-3, 'softplus', epoch, batch_size)
+    train_vae_mnist(np.vstack((X_train, X_valid)), X_valid, z_dim, n_hidden, 1e-3, 'relu', epoch, batch_size)
 
 if __name__ == '__main__':
     main()

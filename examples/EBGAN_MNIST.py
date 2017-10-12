@@ -69,7 +69,7 @@ def main():
     opt_gen = Adam(lr=2e-4, beta1=0.5)
     opt_dis = Adam(lr=2e-4, beta1=0.5)
     train_ebgan_mnist(X_train, z_dim, n_hidden, opt_gen, opt_dis, 'elu', epoch, batch_size, k,
-                      use_PT=False)
+                      use_PT=True)
 
 if __name__ == '__main__':
     main()

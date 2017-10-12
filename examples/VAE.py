@@ -27,11 +27,10 @@ class VAE(Model):
     def forward(self, x, train):
         if train:
             q_mean, q_logvar, z = self.encoder.forward(x, sampling=True, train=train)
-            decoder = self.decoder.forward(z, sampling=False, train=train)
-            if isinstance(decoder, (tuple, list)):
-                log_likelihood = self.decoder.log_likelihood(x, *decoder)
-            else:
-                log_likelihood = self.decoder.log_likelihood(x, decoder)
+            log_likelihood = self.decoder.log_likelihood_with_forward(x, z, train=train)
+            # or
+            # mean = self.decoder.forward(z, train=train)
+            # log_likelihood = self.decoder.log_likelihood(x, mean)
             return q_mean, q_logvar, log_likelihood
         else:
             q_mean, q_logvar = self.encoder.forward(x, train=train)

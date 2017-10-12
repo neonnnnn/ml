@@ -1,15 +1,12 @@
 import theano.tensor as T
-import theano
 import numpy as np
 import load_mnist
 from ml.deeplearning.layers import Dense, BatchNormalization, Activation
 from ml.deeplearning.optimizers import Adam
 from ml.deeplearning.models import Model, Sequential
-from ml.deeplearning.distributions import Distribution
 from ml.deeplearning.distributions import Gaussian, Bernoulli
 from ml.utils import BatchIterator, onehot, saveimg
 from CVAE import CVAE
-from VAE_MNIST import binarize
 from ml.deeplearning.theanoutils import variable
 
 
@@ -19,9 +16,11 @@ class Encoder(Gaussian):
             inputs = x
         else:
             inputs = T.concatenate([x, y], axis=1)
-        output = super(Encoder, self).forward(inputs,
-                                              sampling=sampling,
-                                              train=train)
+        output = super(Encoder, self).forward(
+            inputs,
+            sampling=sampling,
+            train=train
+        )
         return output
 
     def function(self, x, y, mode='pred'):
@@ -78,10 +77,13 @@ def train_cvae_mnist():
     # concat encoder and decoder, and define loss
     cvae = CVAE(rng1, encoder=encoder, decoder=decoder)
     opt = Adam(lr=3e-4)
-    cvae.compile(opt=opt, train_loss=None)
+    cvae.compile(opt=opt)
 
     f_encode = encoder.function(variable(X_train), variable(y), mode='pred')
     f_decode = decoder.function(variable(X_train), variable(y), mode='pred')
+
+    def binarize(x):
+        return rng1.binomial(1, x).astype(np.float32)
 
     train_batches = BatchIterator([X_train, y_train], batch_size, aug=[binarize, None])
     # train
@@ -94,8 +96,6 @@ def train_cvae_mnist():
         plot = 255 * np.vstack((X_valid[:10], reconstract))
         saveimg(plot.reshape(110, 28, 28).astype(np.uint8), (11, 10),
                 'imgs/CVAE/CVAE_MNIST_analogy_epoch' + str((i+1)*10) + '.png')
-        del plot
-        del z
 
 if __name__ == '__main__':
     train_cvae_mnist()
