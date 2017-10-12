@@ -8,8 +8,8 @@ from . import initializations
 from . import activations
 from theano.tensor.signal import pool
 from theano.tensor.nnet import conv2d
-from theano.sandbox.cuda.dnn import dnn_conv, GpuDnnConvDesc, GpuDnnConvGradI
-from theano.sandbox.cuda.basic_ops import gpu_alloc_empty, gpu_contiguous
+from theano.gpuarray.dnn import dnn_conv, GpuDnnConvDesc, GpuDnnConvGradI
+from theano.gpuarray.basic_ops import GpuAllocEmpty, gpu_contiguous
 import inspect
 if hasattr(inspect, 'signature'):
     from inspect import signature
@@ -506,13 +506,17 @@ class DeconvCUDNN(Deconv):
     def forward(self, x, train=True):
         img = gpu_contiguous(x)
         kerns = gpu_contiguous(self.W.dimshuffle(1, 0, 2, 3))
-        gpudnnconvdesc = GpuDnnConvDesc(border_mode=self.border_mode,
-                                        subsample=self.subsample,
-                                        conv_mode='conv')
-        out = gpu_alloc_empty(img.shape[0],
-                              kerns.shape[1],
-                              img.shape[2] * self.subsample[0],
-                              img.shape[3] * self.subsample[1])
+        gpudnnconvdesc = GpuDnnConvDesc(
+            border_mode=self.border_mode,
+            subsample=self.subsample,
+            conv_mode='conv'
+        )
+        out = GpuAllocEmpty()(
+            img.shape[0],
+            kerns.shape[1],
+            img.shape[2] * self.subsample[0],
+            img.shape[3] * self.subsample[1]
+        )
         desc = gpudnnconvdesc(out.shape, kerns.shape)
         return (GpuDnnConvGradI()(kerns, img, out, desc) + self.b.dimshuffle('x', 0, 'x', 'x'))
 
@@ -530,7 +534,7 @@ class Pool(Layer):
                       self.n_in[2] / self.poolsize[1])
 
     def forward(self, x, train=True):
-        output = pool.pool_2d(input=x, ds=self.poolsize, ignore_border=True)
+        output = pool.pool_2d(input=x, ws=self.poolsize, ignore_border=True)
         return output
 
 
