@@ -17,8 +17,13 @@ class Distribution(Model):
         super(Distribution, self).__init__(rng, **kwargs)
 
     @abstractmethod
-    def log_likelihood(self, input, x, train=True):
+    def log_likelihood(self, sample, *args, **kwargs):
         pass
+
+    @abstractmethod
+    def log_likelihood_with_forward(self, sample, x, train=True):
+        params = self.forward(x, train=train, sampling=False)
+        return self.log_likelihood(sample, *params)
 
 
 class Gaussian(Distribution):
