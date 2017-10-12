@@ -273,11 +273,10 @@ class Sequential(Model):
 
     # set output
     def forward(self, x, train=True):
-        if hasattr(x, 'len'):
+        if hasattr(x, '__len__'):
             if len(x) == 1:
                 x = x[0]
         output = reduce(lambda a, b: b.forward(a, train=train), [x] + self.layers)
-
         return output
 
     # get update list (not updated by optimizer. e.g., mean_inf in BatchNorm)
