@@ -17,7 +17,7 @@ class Distribution(Model):
         super(Distribution, self).__init__(rng, **kwargs)
 
     @abstractmethod
-    def log_likelihood(self):
+    def log_likelihood(self, input, x, train=True):
         pass
 
 
@@ -26,7 +26,7 @@ class Gaussian(Distribution):
 
         if rng is None:
             rng = network.rng
-        self.srng = T.shared_randomstreams.RandomStreams(rng.randint(9999))
+        self.srng = T.shared_randomstreams.RandomStreams(rng.randint(99999))
         mean_layer.set_shape(network.n_out)
         logvar_layer.set_shape(network.n_out)
         self.n_out = mean_layer.n_out
@@ -49,11 +49,13 @@ class Gaussian(Distribution):
         mean = self.mean_layer.forward(nn_output, train=train)
         logvar = self.logvar_layer.forward(nn_output, train=train)
         if isinstance(self.activations, (list, tuple)):
+            print('aaa')
             if self.activations[0] is not None:
                 mean = self.activations[0](mean)
             if self.activations[1] is not None:
                 logvar = self.activations[1](logvar)
         elif self.activations is not None:
+            print('bbb')
             mean = self.activations(mean)
             logvar = self.activations(logvar)
 
@@ -98,10 +100,14 @@ class Gaussian(Distribution):
             raise ValueError('mode must be "train", "test", "pred" (= "mean"),'
                              ' "logvar" or "sampling.')
 
-    def log_likelihood(self, x, mean, logvar, *args, **kwargs):
-        axis = tuple(range(x.ndim))[1:]
+    def log_likelihood(self, sample, mean, logvar, *args, **kwargs):
+        axis = tuple(range(sample.ndim))[1:]
         c = - 0.5 * math.log(2 * math.pi)
-        return T.sum(c - logvar / 2 - (x - mean) ** 2 / (2 * T.exp(logvar)), axis=axis)
+        return T.sum(c - logvar / 2 - (sample - mean) ** 2 / (2 * T.exp(logvar)), axis=axis)
+
+    def log_likelihood_with_forward(self, sample, x, train=True):
+        mean, logvar = self.forward(x, train=train, sampling=False)
+        return self.log_likelihood(sample, mean, logvar)
 
 
 class Bernoulli(Distribution):
@@ -161,9 +167,14 @@ class Bernoulli(Distribution):
         else:
             raise ValueError('mode must be "train" or "test" or "pred".')
 
-    def log_likelihood(self, x, mean, *args, **kwargs):
-        axis = tuple(range(x.ndim))[1:]
-        return T.sum(x * T.log(mean + 1e-10) + (1 - x) * T.log(1 - mean + 1e-10), axis=axis)
+    def log_likelihood(self, sample, mean, *args, **kwargs):
+        axis = tuple(range(sample.ndim))[1:]
+        return T.sum(sample * T.log(mean + 1e-10) + (1 - sample) * T.log(1 - mean + 1e-10),
+                     axis=axis)
+
+    def log_likelihood_with_forward(self, sample, x, train=True):
+        mean = self.forward(x, train=train, sampling=False)
+        return self.log_likelihood(sample, mean)
 
 
 class Categorical(Bernoulli):
@@ -179,6 +190,6 @@ class Categorical(Bernoulli):
             z = categorical(mean, temp=self.temp, srng=self.srng)
             return mean, z
 
-    def log_likelihood(self, x, mean, *args, **kwargs):
-        axis = tuple(range(x.ndim))[1:]
-        return T.sum(x*T.log(mean + 1e-10), axis=axis)
+    def log_likelihood(self, sample, mean, *args, **kwargs):
+        axis = tuple(range(sample.ndim))[1:]
+        return T.sum(sample*T.log(mean + 1e-10), axis=axis)
