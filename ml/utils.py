@@ -148,6 +148,7 @@ def progbar(now, max_value, time=None):
         sys.stdout.flush()
     else:
         sys.stdout.write('\r')
+        sys.stdout.write('\033[2K')
         sys.stdout.flush()
 
 
