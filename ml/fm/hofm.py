@@ -2,7 +2,7 @@ import numpy as np
 from .anova import anova, grad_anova
 from .fm import FactorizationMachine, sigmoid
 from ..npopt.npopt import get_optimizer
-
+from sklearn.metrics import accuracy_score
 
 class HOFM(FactorizationMachine):
     def __init__(self,

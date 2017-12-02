@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 from ..npopt.npopt import get_optimizer
+from sklearn.metrics import accuracy_score
 
 
 def sigmoid(x):
