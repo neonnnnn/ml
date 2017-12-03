@@ -14,7 +14,7 @@ class FactorizationMachine(object):
                  task='r',
                  optimizer='adagrad',
                  lr=0.01,
-                 sigma=0.01,
+                 sigma=0.1,
                  seed=1,
                  iprint=True):
         self.k = k
@@ -42,7 +42,7 @@ class FactorizationMachine(object):
         else:
             raise ValueError('task is must be "r" or "regression", or "c" or "classification".') 
 
-   def init_params(self, d):
+    def init_params(self, d):
         self.V = self.rng.normal(0, self.sigma, (d, self.k))
         self.w = self.rng.normal(0, self.sigma, (d,))
         self.b = np.zeros(1)
@@ -70,7 +70,7 @@ class FactorizationMachine(object):
         return self.b + np.dot(x, self.w) + self._anova(x)
 
     @staticmethod
-    def _logit_loss(output, y):
+    def _logit_loss(y, output):
         return np.log(np.exp(-abs(y*output))+1) - np.minimum(0, y*output)
 
     @staticmethod
@@ -78,7 +78,7 @@ class FactorizationMachine(object):
         return y*(sigmoid(y*output) - 1)
 
     @staticmethod
-    def _squared_loss(output, y):
+    def _squared_loss(y, output):
         return 0.5*(output-y) ** 2
 
     @staticmethod
@@ -88,10 +88,10 @@ class FactorizationMachine(object):
     def _grad_f_V(self, xi):
         return np.outer(xi, (np.dot(xi, self.V))) - self.V*np.atleast_2d(xi**2).T
 
-    def _stoc_grad(self, x, y, y_pred):
-        grad_loss_f = self.grad_loss_f(y, y_pred)
+    def _stoc_grad(self, x, y, output):
+        grad_loss_f = self.grad_loss_f(y, output)
         grad_loss_w = grad_loss_f*x + self.reg[0]*self.w
-        grad_loss_V = grad_loss_f*self._grad_f_V(x) + self.reg[1]*self.V        
+        grad_loss_V = grad_loss_f*self._grad_f_V(x) + self.reg[1]*self.V
         return [grad_loss_f, grad_loss_w, grad_loss_V]
 
     def _stoc_update(self, X_train, y_train):
@@ -101,20 +101,19 @@ class FactorizationMachine(object):
             self.b += self.optimizer.get_update(grads[0], self.b)
             self.w += self.optimizer.get_update(grads[1], self.w)
             self.V += self.optimizer.get_update(grads[2], self.V)
+        return None
 
-    def _coordinate_descent(self, X_train, y_train):
+    def _coordinate_descent(self, X_train, y_train, output, idxs):
         # this is the coordinate descent(CD) algorihtm proposed by Mathieu Blondel et al.
         # Paper titile: Polynomial Networks and Factorization Machines: New Insights and Efficient Training Algorithms
         # When task = "r", the CD algorithms is equivalent to the alternative least squares(ALS) algotihm implemented in libFM.
         n, d = X_train.shape
-        idxs = [np.where(X_train[:, i] > 0) for i in range(d)]
-        output = self.decision_function(X_train)
-        grad_loss_f = self.grad_loss_f(output, y_train)
+        grad_loss_f = self.grad_loss_f(y_train, output)
         # update b
         b_new = self.b  - np.sum(grad_loss_f) / (self.mu * n)
         output += b_new - self.b
         self.b = b_new
-        grad_loss_f = self.grad_loss_f(output, y_train)
+        grad_loss_f = self.grad_loss_f(y_train, output)
         # update w
         grad_f_w = X_train.T
         grad_f_w_squared_sum = np.sum(grad_f_w**2, axis=1)
@@ -123,21 +122,23 @@ class FactorizationMachine(object):
             wi_new /=  self.mu*grad_f_w_squared_sum[i]+self.reg[0]
             output += (wi_new - self.w[i])*X_train[:, i]
             self.w[i] = wi_new
-            grad_loss_f = self.grad_loss_f(output, y_train)
+            grad_loss_f = self.grad_loss_f(y_train, output)
         # update V
         for f in range(self.k):
             q_f = np.dot(X_train, self.V[:, f])
             # i means l in original paper: "Factorization Machines with libFM"
-            for i,(idx, xi) in enumerate(zip(idxs, X_train.T)):
-                conjunc_other = q_f[idx] - xi[idx]*self.V[i,f]
-                grad_f_v = xi[idx] * conjunc_other
+            for i,(idx, xj) in enumerate(zip(idxs, X_train.T)):
+                conjunc_other = q_f[idx] - xj[idx]*self.V[i,f]
+                grad_f_v = xj[idx] * conjunc_other
                 grad_f_v_squared_sum = np.sum(grad_f_v**2)
                 vif_new = self.V[i,f]*self.mu*grad_f_v_squared_sum - np.dot(grad_f_v, grad_loss_f[idx])
                 vif_new /= self.mu*grad_f_v_squared_sum + self.reg[1]
-                output[idx] += (vif_new - self.V[i, f])*xi[idx]*conjunc_other
-                q_f[idx] += (vif_new-self.V[i, f]) * xi[idx]
+                output[idx] += (vif_new - self.V[i, f])*xj[idx]*conjunc_other
+                q_f[idx] += (vif_new-self.V[i, f]) * xj[idx]
                 self.V[i, f] = vif_new
-                grad_loss_f = self.grad_loss_f(output, y_train)
+                grad_loss_f[idx] = self.grad_loss_f(y_train[idx], output[idx])
+
+        return output
 
     def fit(self, X_train, y_train, n_epoch):
         if self.V is None:
@@ -146,20 +147,30 @@ class FactorizationMachine(object):
             raise ValueError('When task is "c", y_train must be {1, -1}^n.')
         print('training...')
         self._fit(X_train, y_train, n_epoch)
-
-        print('training complete')
+        print('training complete.')
 
     def _fit(self, X_train, y_train, n_epoch):
-        for i in range(n_epoch):
-            idx = self.rng.permutation(y_train.shape[0])
-            X_train, y_train = X_train[idx], y_train[idx]
-            self._optimizer(X_train, y_train)
+        if not isinstance(self.optimizer, Optimizer):
+            idxs = [np.where(X_train[:, i] != 0)[0] for i in X_train.shape[0]]
+            output = self.decision_function(X_train)
+        for epoch in range(n_epoch):
+            if isinstance(self.optimizer):
+                idx = self.rng.permutation(y_train.shape[0])
+                output = self._optimizer(X_train[idx], y_train[idx])
+            else:
+                output = self._optimizer(X_train, y_train, output, idxs)
+
             if self.iprint:
-                output = self.decision_function(X_train)
-                loss = np.mean(self.loss(output, y_train))
-                if self.task == 'c':
-                    pred = np.sign(output)
-                    acc = accuracy_score(y_train, pred)
-                    print('  epoch:{0} loss:{1} accuracy:{2}'.format(i, loss, acc))
-                else:
-                    print('  epoch:{0} loss:{1}'.format(i, loss))
+                self._print(y_train, output, epoch)
+
+    def _print(self, y_train, output, epoch):
+        if output is None:
+            output = self.decision_function(X_train)
+        loss = np.mean(self.loss(y_train, output))
+        if self.task == 'c':
+            pred = np.sign(output)
+            acc = accuracy_score(y_train, pred)
+            print('  epoch:{0} loss:{1} accuracy:{2}'.format(epoch, loss, acc))
+        else:
+            print('  epoch:{0} loss:{1}'.format(epoch, loss))
+
