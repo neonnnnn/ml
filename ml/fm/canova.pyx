@@ -1,4 +1,4 @@
-import cython
+cimport cython
 cimport numpy as np
 import numpy as np
 
