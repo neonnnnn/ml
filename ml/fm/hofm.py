@@ -1,8 +1,7 @@
 import numpy as np
 from .anova import anova, grad_anova, anova_alt, grad_anova_alt, anova_saving_memory
-from .fm import FactorizationMachine, sigmoid
-from ..npopt.npopt import get_optimizer
-from sklearn.metrics import accuracy_score
+from .fm import FactorizationMachine
+from ..npopt.npopt import get_optimizer, Optimizer
 
 
 class HOFM(FactorizationMachine):
@@ -32,7 +31,9 @@ class HOFM(FactorizationMachine):
                                                lr=self.lr, 
                                                params=self.P+[self.w, self.b])
             else:
-                self.optimizer = get_optimizer(self.optimizer, lr=self.lr, params=self.P+[self.w, self.b])
+                self.optimizer = get_optimizer(self.optimizer,
+                                               lr=self.lr,
+                                               params=self.P+[self.w, self.b])
         else:
             self._optimizer = self._coordinate_descent
 
@@ -61,7 +62,7 @@ class HOFM(FactorizationMachine):
         grad_loss_f = self.grad_loss_f(y, output)
         grad_loss_w = grad_loss_f * x + self.reg[0] * self.w
         grad_loss_P *= grad_loss_f
-        grad_loss_P += self.reg[1] * self.P[m-2]
+        grad_loss_P += self.reg[1]*self.P[m-2]
 
         return [grad_loss_f, grad_loss_w, grad_loss_P]
 
@@ -84,16 +85,23 @@ class HOFM(FactorizationMachine):
 
         return None
 
-    def _coordinate_descent(self, X_train, y_train, m, dptable_anova, dptable_grad, dptable_poly, output, idxs):
+    def _coordinate_descent(self,
+                            X_train,
+                            y_train,
+                            m,
+                            dptable_anova,
+                            dptable_grad,
+                            dptable_poly,
+                            output,
+                            idxs):
         # this is the coordinate descent(CD) algorihtm proposed by Mathieu Blondel et al.
-        # Paper titile: Polynomial Networks and Factorization Machines: New Insights and Efficient Training Algorithms
-        # When task = "r", the CD algorithms is equivalent to the alternative least squares(ALS) algotihm implemented in libFM.
+        # When task = "r", the CD algorithms is equivalent to the ALS implemented in libFM.
         # Preliminary: computing output and grad_loss_f
         n, d = X_train.shape
         grad_loss_f = self.grad_loss_f(y_train, output)
 
         # update b
-        b_new = self.b  - np.sum(grad_loss_f) / (self.mu * n)
+        b_new = self.b - np.sum(grad_loss_f) / (self.mu * n)
         output += b_new - self.b
         self.b = b_new
         grad_loss_f = self.grad_loss_f(y_train, output)
@@ -102,8 +110,9 @@ class HOFM(FactorizationMachine):
         grad_f_w = X_train.T
         grad_f_w_squared_sum = np.sum(grad_f_w**2, axis=1)
         for i, idx in enumerate(idxs):
-            wi_new = self.w[i]*self.mu*grad_f_w_squared_sum[i] - np.dot(grad_f_w[i, idx], grad_loss_f[idx])
-            wi_new /=  self.mu*grad_f_w_squared_sum[i]+self.reg[0]
+            wi_new = self.w[i]*self.mu*grad_f_w_squared_sum[i]
+            wi_new -= np.dot(grad_f_w[i, idx], grad_loss_f[idx])
+            wi_new /= self.mu*grad_f_w_squared_sum[i]+self.reg[0]
             output[idx] += (wi_new - self.w[i])*X_train[idx, i]
             self.w[i] = wi_new
             grad_loss_f[idx] = self.grad_loss_f(y_train[idx], output[idx])
@@ -118,9 +127,15 @@ class HOFM(FactorizationMachine):
                     continue
                 # computing m-order anova kernel and its gradient wrt p_{js}
                 anova_alt(self.P[m-2][s], X_train[idx], m, dptable_anova[idx], dptable_poly[idx])
-                grad_anova_pjs = grad_anova_alt(self.P[m-2][s, j], xj[idx], m, dptable_anova[idx], dptable_poly[idx], dptable_grad[idx])
+                grad_anova_pjs = grad_anova_alt(self.P[m-2][s, j],
+                                                xj[idx],
+                                                m,
+                                                dptable_anova[idx],
+                                                dptable_poly[idx],
+                                                dptable_grad[idx])
                 eta = self.mu * np.sum(grad_anova_pjs**2) + n*self.reg[1]
-                new_pjs = self.P[m-2][s, j] - (np.dot(grad_loss_f[idx], grad_anova_pjs) + n*self.P[m-2][s,j]) / eta
+                new_pjs = (self.P[m-2][s, j]
+                           - (np.dot(grad_loss_f[idx], grad_anova_pjs)+n*self.P[m-2][s, j])/eta)
                 # update D~{t} t \in [m] and output
                 for t in range(1, m+1):
                     dptable_poly[idx, t] += (new_pjs**t - self.P[m-2][s, j]**t) * xj[idx]**t
@@ -168,7 +183,14 @@ class HOFM(FactorizationMachine):
             idxs = [np.where(X_train[:, i] != 0)[0] for i in range(d)]
             for epoch in range(n_epoch):
                 m = (epoch % (self.order-1)) + 2
-                output = opt_method(X_train, y_train, m, dptable_anova, dptable_grad, dptable_poly, output, idxs)
+
+                output = opt_method(X_train,
+                                    y_train,
+                                    m,
+                                    dptable_anova,
+                                    dptable_grad,
+                                    dptable_poly,
+                                    output,
+                                    idxs)
                 if self.iprint:
                     self._print(y_train, output, epoch)
-

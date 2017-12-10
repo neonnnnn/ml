@@ -1,6 +1,5 @@
 import numpy as np
-import sys
-from ..npopt.npopt import get_optimizer
+from ..npopt.npopt import get_optimizer, Optimizer
 from sklearn.metrics import accuracy_score
 
 
@@ -53,7 +52,9 @@ class FactorizationMachine(object):
                                                lr=self.lr, 
                                                params=[self.V, self.w, self.b])
             else:
-                self.optimizer = get_optimizer(self.optimizer, lr=self.lr, params= [self.V, self.w, self.b])
+                self.optimizer = get_optimizer(self.optimizer,
+                                               lr=self.lr,
+                                               params=[self.V, self.w, self.b])
         else:
             self._optimizer = self._coordinate_descent
 
@@ -105,8 +106,7 @@ class FactorizationMachine(object):
 
     def _coordinate_descent(self, X_train, y_train, output, idxs):
         # this is the coordinate descent(CD) algorihtm proposed by Mathieu Blondel et al.
-        # Paper titile: Polynomial Networks and Factorization Machines: New Insights and Efficient Training Algorithms
-        # When task = "r", the CD algorithms is equivalent to the alternative least squares(ALS) algotihm implemented in libFM.
+        # When task = "r", the CD algorithms is equivalent to ALS algotihm implemented in libFM.
         n, d = X_train.shape
         grad_loss_f = self.grad_loss_f(y_train, output)
         # update b
@@ -128,10 +128,11 @@ class FactorizationMachine(object):
             q_f = np.dot(X_train, self.V[:, f])
             # i means l in original paper: "Factorization Machines with libFM"
             for i,(idx, xj) in enumerate(zip(idxs, X_train.T)):
-                conjunc_other = q_f[idx] - xj[idx]*self.V[i,f]
+                conjunc_other = q_f[idx] - xj[idx]*self.V[i, f]
                 grad_f_v = xj[idx] * conjunc_other
                 grad_f_v_squared_sum = np.sum(grad_f_v**2)
-                vif_new = self.V[i,f]*self.mu*grad_f_v_squared_sum - np.dot(grad_f_v, grad_loss_f[idx])
+                vif_new = (self.V[i, f]*self.mu*grad_f_v_squared_sum
+                           - np.dot(grad_f_v, grad_loss_f[idx]))
                 vif_new /= self.mu*grad_f_v_squared_sum + self.reg[1]
                 output[idx] += (vif_new - self.V[i, f])*xj[idx]*conjunc_other
                 q_f[idx] += (vif_new-self.V[i, f]) * xj[idx]
