@@ -17,7 +17,7 @@ cdef double _anova(double[:] p, double[:] x, int order, int d, double[:, :] a):
     return a[t, j]
 
 
-cpdef double anova_saving_memory(double[:] p, double[;] x, int order, double[:] dptable):
+cpdef double anova_saving_memory(double[:] p, double[:] x, int order, double[:] dptable):
     dptable[0] = 1
     dptable[1:] = 0
     d = p.shape[0]
@@ -28,7 +28,7 @@ cdef double _anova_saving_memory(double[:] p, double[:] x, int order, int d, dou
     cdef int i, j
     for j in range(order):
         for t in range(j+1):
-            a[j+1-t] += a[j-t] * p[j]*x[j]
+            a[j+1-t] += a[j-t]*p[j]*x[j]
     for j in range(order, d):
         for t in range(order):
             a[order-t] += a[order-t-1]*p[j]*x[j]
@@ -36,13 +36,21 @@ cdef double _anova_saving_memory(double[:] p, double[:] x, int order, int d, dou
     return a[order]
 
 
-cpdef double[:] anova_alt(double[:] p, double[:,:] x, int order, double[:,:] dptable_anova, double[:,:] dptable_poly):
+cpdef np.ndarray[double, ndim=1] anova_alt(np.ndarray[double, ndim=1] p,
+                                           np.ndarray[double, ndim=1] x,
+                                           int order,
+                                           np.ndarray[double, ndim=2] dptable_anova,
+                                           np.ndarray[double, ndim=2] dptable_poly):
     dptable_anova[:, 0] = 1
     dptable_poly[:, 0] = 1
     return _anova_alt(p, x, order, dptable_anova, dptable_poly)
 
 
-cdef double[:] _anova_alt(double[:] p, double[:] x, int order, double[:,:] a, double[:,:] poly):
+cdef np.ndarray[double, ndim=1] _anova_alt(np.ndarray[double, ndim=1] p,
+                                           np.ndarray[double, ndim=2] x,
+                                           int order,
+                                           np.ndarray[double, ndim=2] a,
+                                           np.ndarray[double, ndim=2] poly):
     cdef int m, t, sign
     cdef double temp
     sign = 1
@@ -57,14 +65,23 @@ cdef double[:] _anova_alt(double[:] p, double[:] x, int order, double[:,:] a, do
     return a[:, order]
 
 
-cpdef double[:] grad_anova(double[:] p, double[:] x, int order, double[:,:] dptable_anova, double[:,:] dptable_grad):
+cpdef np.ndarray[double, ndim=1] grad_anova(np.ndarray[double, ndim=1] p,
+                                          np.ndarray[double, ndim=1] x,
+                                          int order,
+                                          np.ndarray[double, ndim=2] dptable_anova,
+                                          np.ndarray[double, ndim=2] dptable_grad):
     d = p.shape[0]
     dptable_grad[order-1, d-1] = 1
 
     return _grad_anova(p, x, order, d, dptable_anova, dptable_grad)
 
 
-cdef double[:] _grad_anova(double[:] p, double[:] x, int order, int d, double[:,:] a, double[:,:] grad):
+cdef np.ndarray[double, ndim=1] _grad_anova(np.ndarray[double, ndim=1] p,
+                                            np.ndarray[double, ndim=1] x,
+                                            int order,
+                                            int d,
+                                            np.ndarray[double, ndim=2] a,
+                                            np.ndarray[double, ndim=2] grad):
     cdef int t,j
     for t in range(order, 0, -1):
         for j in range(d-1, t-1, -1):
@@ -73,13 +90,23 @@ cdef double[:] _grad_anova(double[:] p, double[:] x, int order, int d, double[:,
     return np.sum(a[:order, :-1] * grad[:order], axis=0) * x
 
 
-cpdef double[:] grad_anova_alt(double p_js, double[:] x_j, int order, double[:,:] dptable_anova, double[:,:] dptable_poly, double[:,:] dptable_grad):
+cpdef np.ndarray[double, ndim=1] grad_anova_alt(double p_js,
+                                                np.ndarray[double, ndim=1] x_j,
+                                                int order,
+                                                np.ndarray[double, ndim=2] dptable_anova,
+                                                np.ndarray[double, ndim=2] dptable_poly,
+                                                np.ndarray[double, ndim=2] dptable_grad):
     dptable_grad[:, 0] = 0
     dptable_grad[:, 1] = x_j
     return _grad_anova_alt(p_js, x_j, order, dptable_anova, dptable_poly, dptable_grad)
 
 
-cdef double[:] _grad_anova_alt(double p, double[:] x, int order, double[:,:] a, double[:,:] poly, double[:,:] grad):
+cdef np.ndarray[double, ndim=1] _grad_anova_alt(double p,
+                                                np.ndarray[double, ndim=1] x,
+                                                int order,
+                                                np.ndarray[double, ndim=2] a,
+                                                np.ndarray[double, ndim=2] poly,
+                                                np.ndarray[double, ndim=2] grad):
     cdef int m, t, sign
     cdef double temp
     for m in range(2, order+1):
