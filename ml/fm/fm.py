@@ -165,8 +165,6 @@ class FactorizationMachine(object):
                 self._print(y_train, output, epoch)
 
     def _print(self, y_train, output, epoch):
-        if output is None:
-            output = self.decision_function(X_train)
         loss = np.mean(self.loss(y_train, output))
         if self.task == 'c':
             pred = np.sign(output)
