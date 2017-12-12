@@ -9,7 +9,7 @@ def sigmoid(x):
 
 class FactorizationMachine(object):
     def __init__(self, k,
-                 reg=[1e-5, 1e-5],
+                 reg=None,
                  task='r',
                  optimizer='adagrad',
                  lr=0.01,
@@ -17,7 +17,10 @@ class FactorizationMachine(object):
                  seed=1,
                  iprint=True):
         self.k = k
-        self.reg = reg
+        if reg is None:
+            self.reg = [1e-5, 1e-5]
+        else:
+            self.reg = reg
         self.lr = lr
         self.b = None
         self.w = None
@@ -105,12 +108,12 @@ class FactorizationMachine(object):
         return None
 
     def _coordinate_descent(self, X_train, y_train, output, idxs):
-        # this is the coordinate descent(CD) algorihtm proposed by Mathieu Blondel et al.
-        # When task = "r", the CD algorithms is equivalent to ALS algotihm implemented in libFM.
+        # this is the coordinate descent(CD) algorithm proposed by Mathieu Blondel et al.
+        # When task = "r", the CD algorithms is equivalent to ALS algorithm implemented in libFM.
         n, d = X_train.shape
         grad_loss_f = self.grad_loss_f(y_train, output)
         # update b
-        b_new = self.b  - np.sum(grad_loss_f) / (self.mu * n)
+        b_new = self.b - np.sum(grad_loss_f) / (self.mu * n)
         output += b_new - self.b
         self.b = b_new
         grad_loss_f = self.grad_loss_f(y_train, output)
@@ -119,7 +122,7 @@ class FactorizationMachine(object):
         grad_f_w_squared_sum = np.sum(grad_f_w**2, axis=1)
         for i in range(d):
             wi_new = self.w[i]*self.mu*grad_f_w_squared_sum[i] - np.dot(grad_f_w[i], grad_loss_f)
-            wi_new /=  self.mu*grad_f_w_squared_sum[i]+self.reg[0]
+            wi_new /= self.mu*grad_f_w_squared_sum[i]+self.reg[0]
             output += (wi_new - self.w[i])*X_train[:, i]
             self.w[i] = wi_new
             grad_loss_f = self.grad_loss_f(y_train, output)
@@ -127,7 +130,7 @@ class FactorizationMachine(object):
         for f in range(self.k):
             q_f = np.dot(X_train, self.V[:, f])
             # i means l in original paper: "Factorization Machines with libFM"
-            for i,(idx, xj) in enumerate(zip(idxs, X_train.T)):
+            for i, (idx, xj) in enumerate(zip(idxs, X_train.T)):
                 conjunc_other = q_f[idx] - xj[idx]*self.V[i, f]
                 grad_f_v = xj[idx] * conjunc_other
                 grad_f_v_squared_sum = np.sum(grad_f_v**2)
@@ -172,4 +175,3 @@ class FactorizationMachine(object):
             print('  epoch:{0} loss:{1} accuracy:{2}'.format(epoch, loss, acc))
         else:
             print('  epoch:{0} loss:{1}'.format(epoch, loss))
-

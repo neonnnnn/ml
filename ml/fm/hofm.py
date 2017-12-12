@@ -8,7 +8,7 @@ class HOFM(FactorizationMachine):
     def __init__(self,
                  order=3,
                  k=30,
-                 reg=[1e-5,1e-5],
+                 reg=None,
                  task='r',
                  optimizer='adagrad',
                  lr=0.01,
