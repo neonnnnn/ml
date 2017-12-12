@@ -95,7 +95,7 @@ cpdef np.ndarray[double, ndim=1] grad_anova_alt(double p_js,
                                                 np.ndarray[double, ndim=2] dptable_anova,
                                                 np.ndarray[double, ndim=2] dptable_poly,
                                                 np.ndarray[double, ndim=2] dptable_grad):
-    dptable_grad[:, 0] = 0
+    dptable_grad[:, :] = 0
     dptable_grad[:, 1] = x_j
     return _grad_anova_alt(p_js, x_j, order, dptable_anova, dptable_poly, dptable_grad)
 
@@ -107,12 +107,10 @@ cdef np.ndarray[double, ndim=1] _grad_anova_alt(double p,
                                                 np.ndarray[double, ndim=2] poly,
                                                 np.ndarray[double, ndim=2] grad):
     cdef int m, t, sign
-    cdef double temp
     for m in range(2, order+1):
-        temp = 0.
         sign = 1
         for t in range(1, m+1):
-            temp += (grad[:, m-t]*poly[:, t] + a[:, m-t]*t*(p**(t-1))*(x**t)) * sign
+            grad[:, m] += (grad[:, m-t]*poly[:, t] + a[:, m-t]*t*(p**(t-1))*(x**t)) * sign
             sign *= -1
         grad[:, m] = temp / m
 
