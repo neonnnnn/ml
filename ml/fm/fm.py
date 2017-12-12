@@ -48,7 +48,7 @@ class FactorizationMachine(object):
         self.V = self.rng.normal(0, self.sigma, (d, self.k))
         self.w = self.rng.normal(0, self.sigma, (d,))
         self.b = np.zeros(1)
-        if self.optimizer != 'cd' and self.optimizer != 'als':
+        if self.optimizer not in ['cd', 'CD', 'als', 'ALS']:
             self._optimizer = self._stoc_update
             if isinstance(self.optimizer, Optimizer):
                 self.optimizer = get_optimizer(self.optimizer.__name__, 
@@ -59,7 +59,7 @@ class FactorizationMachine(object):
                                                lr=self.lr,
                                                params=[self.V, self.w, self.b])
         else:
-            self._optimizer = self._coordinate_descent
+            self._optimizer = self._als
 
     def predict(self, x):
         output = self.decision_function(x)
@@ -87,7 +87,7 @@ class FactorizationMachine(object):
 
     @staticmethod
     def _grad_squared_f(y, output):
-        return (output-y)
+        return output-y
 
     def _grad_f_V(self, xi):
         return np.outer(xi, (np.dot(xi, self.V))) - self.V*np.atleast_2d(xi**2).T
@@ -107,7 +107,7 @@ class FactorizationMachine(object):
             self.V += self.optimizer.get_update(grads[2], self.V)
         return None
 
-    def _coordinate_descent(self, X_train, y_train, output, idxs):
+    def _als(self, X_train, y_train, output, idxs):
         # this is the coordinate descent(CD) algorithm proposed by Mathieu Blondel et al.
         # When task = "r", the CD algorithms is equivalent to ALS algorithm implemented in libFM.
         n, d = X_train.shape

@@ -36,20 +36,16 @@ cdef double _anova_saving_memory(double[:] p, double[:] x, int order, int d, dou
     return a[order]
 
 
-cpdef np.ndarray[double, ndim=1] anova_alt(np.ndarray[double, ndim=1] p,
-                                           np.ndarray[double, ndim=2] x,
-                                           int order,
+cpdef np.ndarray[double, ndim=1] anova_alt(int order,
                                            np.ndarray[double, ndim=2] dptable_anova,
                                            np.ndarray[double, ndim=2] dptable_poly):
     dptable_anova[:, 0] = 1
     dptable_anova[:, 1:] = 0
     dptable_poly[:, 0] = 1
-    return _anova_alt(p, x, order, dptable_anova, dptable_poly)
+    return _anova_alt(order, dptable_anova, dptable_poly)
 
 
-cdef np.ndarray[double, ndim=1] _anova_alt(np.ndarray[double, ndim=1] p,
-                                           np.ndarray[double, ndim=2] x,
-                                           int order,
+cdef np.ndarray[double, ndim=1] _anova_alt(int order,
                                            np.ndarray[double, ndim=2] a,
                                            np.ndarray[double, ndim=2] poly):
     cdef int m, t, sign

@@ -22,9 +22,9 @@ class HOFM(FactorizationMachine):
     def init_params(self, d):
         self.P = [self.rng.normal(0, self.sigma, (d, self.k)).T for _ in range(self.order-1)]
         self.w = self.rng.normal(0, self.sigma, (d,))
-        self.b  = np.zeros(1)
+        self.b = np.zeros(1)
 
-        if not self.optimizer in ['cd', 'CD', 'als', 'ALS']:
+        if self.optimizer not in ['cd', 'CD', 'als', 'ALS']:
             self._optimizer = self._stoc_update
             if isinstance(self.optimizer, Optimizer):
                 self.optimizer = get_optimizer(self.optimizer.__name__, 
@@ -94,7 +94,7 @@ class HOFM(FactorizationMachine):
                             dptable_poly,
                             output,
                             idxs):
-        # this is the coordinate descent(CD) algorihtm proposed by Mathieu Blondel et al.
+        # this is the coordinate descent(CD) algorithm proposed by Mathieu Blondel et al.
         # When task = "r", the CD algorithms is equivalent to the ALS implemented in libFM.
         # Preliminary: computing output and grad_loss_f
         n, d = X_train.shape
@@ -126,7 +126,7 @@ class HOFM(FactorizationMachine):
                 if len(idx) == 0:
                     continue
                 # computing m-order anova kernel and its gradient wrt p_{js}
-                anova_alt(self.P[m-2][s], X_train[idx], m, dptable_anova[idx], dptable_poly[idx])
+                anova_alt(m, dptable_anova[idx], dptable_poly[idx])
                 grad_anova_pjs = grad_anova_alt(self.P[m-2][s, j],
                                                 xj[idx],
                                                 m,
@@ -140,8 +140,8 @@ class HOFM(FactorizationMachine):
                 for t in range(1, m+1):
                     dptable_poly[idx, t] += (new_pjs**t - self.P[m-2][s, j]**t) * xj[idx]**t
                 output[idx] -= dptable_anova[idx, m]
-                self.P[m-2][s,j] = new_pjs
-                anova_alt(self.P[m-2][s,j], xj, m, dptable_anova[idx], dptable_poly[idx])
+                self.P[m-2][s, j] = new_pjs
+                anova_alt(m, dptable_anova[idx], dptable_poly[idx])
                 output[idx] += dptable_anova[idx, m]
                 grad_loss_f[idx] = self.grad_loss_f(y_train[idx], output[idx])
 
