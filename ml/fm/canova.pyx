@@ -112,6 +112,6 @@ cdef np.ndarray[double, ndim=1] _grad_anova_alt(double p,
         for t in range(1, m+1):
             grad[:, m] += (grad[:, m-t]*poly[:, t] + a[:, m-t]*t*(p**(t-1))*(x**t)) * sign
             sign *= -1
-        grad[:, m] = temp / m
+        grad[:, m] /= m
 
     return grad[:, order]
